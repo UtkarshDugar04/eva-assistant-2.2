@@ -35,7 +35,7 @@ export const MessageList = () => {
     <div className="chat-area scroll-container">
       {messages.map((msg) => (
         <div key={msg.id} className={`message ${msg.sender}`}>
-          <div>{msg.text}</div>
+          <div style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</div>
           {msg.widget && (
             <WidgetRenderer type={msg.widget} data={msg.widgetData} />
           )}
@@ -59,8 +59,6 @@ export const MessageList = () => {
   );
 };
 
-
-
 export const InputArea = () => {
   const [text, setText] = useState('');
   const { sendMessage, addBotMessage } = useChat();
@@ -68,12 +66,22 @@ export const InputArea = () => {
   const recognitionRef = useRef<any>(null);
   const silenceTimerRef = useRef<any>(null);
   const textRef = useRef('');
+  const lastSubmissionRef = useRef<{ text: string, time: number }>({ text: '', time: 0 });
 
   const [isListening, setIsListening] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const handleSend = () => {
-    if (text.trim()) {
-      sendMessage(text);
+    const trimmed = text.trim();
+    if (trimmed) {
+      // Duplicate Submission Guard
+      const now = Date.now();
+      if (trimmed === lastSubmissionRef.current.text && (now - lastSubmissionRef.current.time) < 2500) {
+        return; 
+      }
+      
+      lastSubmissionRef.current = { text: trimmed, time: now };
+      sendMessage(trimmed);
       setText('');
       textRef.current = '';
       if (recognitionRef.current) recognitionRef.current.stop();
@@ -89,7 +97,7 @@ export const InputArea = () => {
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      addBotMessage("Speech recognition is not supported in this browser.");
+      addBotMessage("Voice input is limited on this browser. You can still use your keyboard or device dictation.");
       return;
     }
 
@@ -101,12 +109,13 @@ export const InputArea = () => {
     
     textRef.current = '';
     setText('');
+    setIsProcessing(false);
     
     const resetSilenceTimer = () => {
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = setTimeout(() => {
         if (recognitionRef.current) recognitionRef.current.stop();
-      }, 5000);
+      }, 5000); // 5s silence before auto-stop
     };
 
     recognition.onstart = () => {
@@ -136,22 +145,30 @@ export const InputArea = () => {
       resetSilenceTimer();
     };
     
-    recognition.onerror = () => {
+    recognition.onerror = (event: any) => {
       setIsListening(false);
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      console.error('Speech error:', event.error);
     };
 
     recognition.onend = () => {
       setIsListening(false);
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       
-      const finalVal = textRef.current.trim();
+      const finalVal = textRef.current.trim() || text.trim();
       if (finalVal) {
-        sendMessage(finalVal);
-        setText('');
-        textRef.current = '';
-      } else if (!textRef.current && !text) {
-        addBotMessage("I couldn't hear anything. Please try again.");
+        setIsProcessing(true);
+        setTimeout(() => {
+            handleSend();
+            setIsProcessing(false);
+        }, 300);
+      } else {
+        // Only show error if absolutely nothing was captured
+        setTimeout(() => {
+            if (!textRef.current && !text) {
+                addBotMessage("I couldn't hear anything. Please try again.");
+            }
+        }, 100);
       }
     };
     
@@ -169,21 +186,23 @@ export const InputArea = () => {
         <button className="icon-btn" aria-label="Add attachment">
           <Plus size={24} />
         </button>
-        <div className="input-container">
+        <div className="input-container" style={{ position: 'relative' }}>
           <input
             ref={inputRef}
             type="text"
             className="chat-input"
-            placeholder="Type or speak naturally..."
+            placeholder={isListening ? "Listening..." : (isProcessing ? "Processing..." : "Type or speak naturally...")}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+            disabled={isProcessing}
           />
           <button 
             className={`icon-btn ${isListening ? 'listening' : ''}`} 
-            aria-label="Voice input (tap to toggle)" 
+            aria-label="Voice input" 
             style={{ marginRight: '-8px' }} 
             onClick={handleVoiceToggle}
+            disabled={isProcessing}
           >
             {isListening ? (
               <div style={{ display: 'flex', gap: '2px', alignItems: 'center', height: '16px' }}>
@@ -192,14 +211,14 @@ export const InputArea = () => {
                 <div className="voice-bar" style={{ animationDelay: '0.4s' }}></div>
               </div>
             ) : (
-              <Mic size={20} color="var(--color-text-muted)" />
+              <Mic size={20} color={isProcessing ? "var(--color-primary)" : "var(--color-text-muted)"} />
             )}
           </button>
         </div>
         <button 
           className={`icon-btn ${text.trim() ? 'primary' : ''}`} 
           onClick={handleSend}
-          disabled={!text.trim()}
+          disabled={!text.trim() || isProcessing}
           aria-label="Send message"
         >
           <Send size={20} />

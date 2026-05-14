@@ -33,14 +33,36 @@ const typoMap: Record<string, string> = {
 
 function normalizeText(text: string): string {
   let normalized = text.toLowerCase().trim();
+  
   Object.keys(typoMap).forEach(typo => {
     normalized = normalized.replace(new RegExp(`\\b${typo}\\b`, 'g'), typoMap[typo]);
   });
+
+  // Comprehensive Indian number word mapping
+  const indianNumbers: Record<string, string> = {
+    'paanch hazaar': '5000',
+    'do hazaar': '2000',
+    'ek hazaar': '1000',
+    'das hazaar': '10000',
+    'bees hazaar': '20000',
+    'paanch sau': '500',
+    'ek sau': '100',
+    'do sau': '200',
+    'teen sau': '300',
+    'char sau': '400'
+  };
+
+  Object.keys(indianNumbers).forEach(word => {
+    normalized = normalized.replace(new RegExp(`\\b${word}\\b`, 'g'), indianNumbers[word]);
+  });
+
   normalized = normalized.replace(/\b(?:one|1)\s*thousand\b/g, '1000');
   normalized = normalized.replace(/\b(?:two|2)\s*thousand\b/g, '2000');
   normalized = normalized.replace(/\b(?:five|5)\s*thousand\b/g, '5000');
+  
   normalized = normalized.replace(/\b(\d+)\s*k\b/g, (_, num) => String(parseInt(num) * 1000));
   normalized = normalized.replace(/\b(\d+)\s*lakh\b/g, (_, num) => String(parseInt(num) * 100000));
+  
   return normalized;
 }
 
@@ -82,6 +104,37 @@ export function parseUserInput(text: string): ParsedInput {
   if (lowerText === 'share') {
       result.intent = 'share';
       return result;
+  }
+
+  // Hinglish Advanced Regex: [Name] ko [Amount] [Action]
+  // Matches: "Suhani ko 5000", "Rahul ko 1000 bhejo", "Mom ko paisa bhejna hai"
+  const hinglishMatch = lowerText.match(/\b([a-z]+)\s+to\s+(\d+)\b/i); 
+  if (hinglishMatch) {
+      const name = hinglishMatch[1];
+      const amount = hinglishMatch[2];
+      
+      const ben = mockBeneficiaries.find(b => b.name.toLowerCase().includes(name.toLowerCase()));
+      if (ben) result.entities.beneficiary = ben;
+      else result.entities.potentialName = name.charAt(0).toUpperCase() + name.slice(1);
+      
+      result.entities.amount = parseInt(amount, 10);
+      result.intent = 'transfer';
+      return result;
+  }
+
+  // Handle "Recipient ko amount" without explicit verbs
+  const simpleHinglish = lowerText.match(/\b([a-z]+)\s+to\s+([₹\d,]+)\b/i);
+  if (simpleHinglish) {
+      const name = simpleHinglish[1];
+      const amountStr = simpleHinglish[2].replace(/[₹,]/g, '');
+      if (!isNaN(Number(amountStr))) {
+          const ben = mockBeneficiaries.find(b => b.name.toLowerCase().includes(name.toLowerCase()));
+          if (ben) result.entities.beneficiary = ben;
+          else result.entities.potentialName = name.charAt(0).toUpperCase() + name.slice(1);
+          result.entities.amount = parseInt(amountStr, 10);
+          result.intent = 'transfer';
+          return result;
+      }
   }
 
   if (/\b(charges|fee|cost)\b/i.test(lowerText)) result.entities.faq = 'charges';
@@ -144,7 +197,6 @@ export function parseUserInput(text: string): ParsedInput {
      }
   }
 
-  // Matching specific accounts by ending or type
   if (/\b(salary)\b/.test(lowerText)) result.entities.sourceAccountId = mockAccounts.find(a => a.type === 'Salary')?.id;
   if (/\b(savings)\b/.test(lowerText) && !lowerText.includes('current')) result.entities.sourceAccountId = mockAccounts.find(a => a.type === 'Savings')?.id;
   if (/\b(current)\b/.test(lowerText)) result.entities.sourceAccountId = mockAccounts.find(a => a.type === 'Current')?.id;
@@ -210,7 +262,7 @@ export function generateBotResponse(
         recipient: null,
         amount: null,
         method: 'IMPS',
-        sourceAccountId: mockAccounts[0].id, // Default to first account
+        sourceAccountId: mockAccounts[0].id, 
         stage: 'start',
         entities: {}
      };
