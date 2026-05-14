@@ -8,6 +8,11 @@ export interface ParsedInput {
   isCorrection?: boolean;
 }
 
+// Protected keywords that should NEVER be treated as beneficiary names
+const protectedKeywords = [
+  'transfer', 'money', 'payment', 'pay', 'send', 'funds', 'amount', 'bank', 'account', 'transaction', 'rupees', 'rs', 'cash', 'remit', 'deposit', 'move', 'give', 'settle', 'owe'
+];
+
 // Typo mapping & synonyms
 const typoMap: Record<string, string> = {
   'suhni': 'suhani',
@@ -112,7 +117,8 @@ export function parseUserInput(text: string): ParsedInput {
 
   const benMatches = mockBeneficiaries.filter(b => {
     const nameParts = b.name.toLowerCase().split(' ');
-    const cleanWords = words.filter(w => !['send', 'transfer', 'pay', 'to', 'ko', 'rupees', 'rs', 'imps', 'neft', 'upi', 'bhejna', 'hai', 'account', 'salary', 'savings'].includes(w) && isNaN(Number(w)) && !w.includes('@'));
+    // Filter out protected keywords and known commands
+    const cleanWords = words.filter(w => !protectedKeywords.includes(w) && !['to', 'ko', 'hai', 'salary', 'savings', 'current'].includes(w) && isNaN(Number(w)) && !w.includes('@'));
     
     let isMatch = false;
     for (const part of nameParts) {
@@ -142,8 +148,9 @@ export function parseUserInput(text: string): ParsedInput {
       result.entities.multipleBeneficiaries = benMatches;
     }
   } else {
+     // Check for new beneficiary name pattern: "to Suhani", "pay Rahul"
      const toMatch = lowerText.match(/(?:to|ko|pay)\s+([a-z]+)/i);
-     if (toMatch && !['my', 'the', 'bill', 'credit', 'rent'].includes(toMatch[1])) {
+     if (toMatch && !protectedKeywords.includes(toMatch[1])) {
          result.entities.newBeneficiaryName = toMatch[1].charAt(0).toUpperCase() + toMatch[1].slice(1);
      }
   }
@@ -180,7 +187,7 @@ export function parseUserInput(text: string): ParsedInput {
     else if (lowerText.includes('show') || lowerText.includes('my')) result.entities.listAll = true;
     return result;
   }
-  if (/\b(send|transfer|pay|give|bhejna|bhejo|ko|settle|owe)\b/.test(lowerText) && result.intent !== 'pay_bill') {
+  if (/\b(send|transfer|pay|give|bhejna|bhejo|ko|settle|owe|remit|payment|move)\b/.test(lowerText) && result.intent !== 'pay_bill') {
     result.intent = 'transfer';
     return result;
   }
@@ -295,6 +302,7 @@ export function generateBotResponse(
 
   switch (intent) {
     case 'transfer':
+      // CRITICAL FIX: Only run balance validation if amount is present
       if (entities.amount && entities.amount > (updatedContext.balance ?? mockAccount.balance)) {
          return {
            text: `Your available balance is ₹${(updatedContext.balance ?? mockAccount.balance).toLocaleString('en-IN')}. Please choose a lower amount or another account.`,
@@ -306,7 +314,7 @@ export function generateBotResponse(
       if (entities.mobile) {
          return {
            text: `Found linked account for ${entities.mobile} (Axis Bank •••3210). Is this the correct recipient?`,
-           widget: 'fallback_widget', // A simple Yes/No widget
+           widget: 'fallback_widget',
            updatedContext: { ...updatedContext, entities: { ...entities, beneficiaryName: 'Axis Bank •••3210' } }
          };
       }
@@ -318,6 +326,7 @@ export function generateBotResponse(
          };
       }
       
+      // Slot completion logic
       if (entities.amount && (entities.beneficiaryName || entities.newBeneficiaryName)) {
         if (entities.newBeneficiaryName && !entities.beneficiaryName) {
             return {
@@ -328,7 +337,6 @@ export function generateBotResponse(
             };
         }
 
-        // Suggest IMPS if urgent
         let methodStr = entities.method || 'IMPS';
         let arrivalStr = 'Instant';
         let prefix = isCorrection ? 'Got it, updated.' : 'Got it.';
@@ -368,7 +376,7 @@ export function generateBotResponse(
       } else if (entities.amount) {
         return { text: `Who would you like to send ₹${entities.amount.toLocaleString('en-IN')} to?`, updatedContext };
       } else if (entities.beneficiaryName) {
-        return { text: `Sure, how much would you like to send to ${entities.beneficiaryName}?`, updatedContext };
+        return { text: `Certainly — how much would you like to send to ${entities.beneficiaryName}?`, updatedContext };
       } else if (entities.multipleBeneficiaries) {
         return { 
           text: `I found multiple matches. Which one would you like?`, 
@@ -448,7 +456,6 @@ export function generateBotResponse(
 
     default:
       if (Object.keys(entities).length > 0) {
-          // Recover from confusion
           return { text: "I caught those details. Do you want to start a money transfer?", updatedContext };
       }
       return {
