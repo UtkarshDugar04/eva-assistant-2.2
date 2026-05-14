@@ -8,15 +8,15 @@ export const Header = () => {
   return (
     <header className="app-header">
       <div className="header-title">
-        <img src="https://upload.wikimedia.org/wikipedia/commons/2/28/HDFC_Bank_Logo.svg" alt="HDFC Bank" height="20" />
-        <span className="ai-badge">Eva AI</span>
+        <img src="https://upload.wikimedia.org/wikipedia/commons/2/28/HDFC_Bank_Logo.svg" alt="HDFC Bank" height="24" />
+        <span className="ai-badge">Eva Assistant</span>
       </div>
-      <div style={{ display: 'flex', gap: '4px' }}>
-        <button className="icon-btn" onClick={toggleAccessibilityMode} aria-label="Accessibility Settings" style={{ color: isAccessibilityMode ? 'var(--color-primary)' : 'var(--color-text-secondary)' }}>
-          <Accessibility size={22} />
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button className="icon-btn" onClick={toggleAccessibilityMode} aria-label="Toggle Accessibility Mode" style={{ color: isAccessibilityMode ? 'var(--color-primary)' : 'var(--color-text-main)' }}>
+          <Accessibility size={24} />
         </button>
-        <button className="icon-btn" aria-label="Menu">
-          <MoreVertical size={22} />
+        <button className="icon-btn" aria-label="More options">
+          <MoreVertical size={24} color="var(--color-text-main)" />
         </button>
       </div>
     </header>
@@ -28,7 +28,6 @@ export const MessageList = () => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Immediate scroll on new messages
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
@@ -36,7 +35,7 @@ export const MessageList = () => {
     <div className="chat-area scroll-container">
       {messages.map((msg) => (
         <div key={msg.id} className={`message ${msg.sender}`}>
-          <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>{msg.text}</div>
+          <div style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</div>
           {msg.widget && (
             <WidgetRenderer type={msg.widget} data={msg.widgetData} />
           )}
@@ -47,7 +46,7 @@ export const MessageList = () => {
       ))}
       
       {isTyping && (
-        <div className="message bot" style={{ padding: '12px 16px' }}>
+        <div className="message bot">
           <div className="typing-indicator">
             <div className="typing-dot" />
             <div className="typing-dot" />
@@ -55,7 +54,7 @@ export const MessageList = () => {
           </div>
         </div>
       )}
-      <div ref={bottomRef} style={{ height: '1px', flexShrink: 0 }} />
+      <div ref={bottomRef} />
     </div>
   );
 };
@@ -75,6 +74,7 @@ export const InputArea = () => {
   const handleSend = () => {
     const trimmed = text.trim();
     if (trimmed) {
+      // Duplicate Submission Guard
       const now = Date.now();
       if (trimmed === lastSubmissionRef.current.text && (now - lastSubmissionRef.current.time) < 2500) {
         return; 
@@ -97,7 +97,7 @@ export const InputArea = () => {
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      addBotMessage("Voice input is limited on this browser. You can still use your device's dictation.");
+      addBotMessage("Voice input is limited on this browser. You can still use your keyboard or device dictation.");
       return;
     }
 
@@ -115,7 +115,7 @@ export const InputArea = () => {
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = setTimeout(() => {
         if (recognitionRef.current) recognitionRef.current.stop();
-      }, 5000);
+      }, 5000); // 5s silence before auto-stop
     };
 
     recognition.onstart = () => {
@@ -145,9 +145,10 @@ export const InputArea = () => {
       resetSilenceTimer();
     };
     
-    recognition.onerror = () => {
+    recognition.onerror = (event: any) => {
       setIsListening(false);
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      console.error('Speech error:', event.error);
     };
 
     recognition.onend = () => {
@@ -160,13 +161,14 @@ export const InputArea = () => {
         setTimeout(() => {
             handleSend();
             setIsProcessing(false);
-        }, 400);
+        }, 300);
       } else {
+        // Only show error if absolutely nothing was captured
         setTimeout(() => {
             if (!textRef.current && !text) {
                 addBotMessage("I couldn't hear anything. Please try again.");
             }
-        }, 200);
+        }, 100);
       }
     };
     
@@ -179,49 +181,49 @@ export const InputArea = () => {
   };
 
   return (
-    <div className="input-area">
-      <button className="icon-btn" aria-label="Add file">
-        <Plus size={24} />
-      </button>
-      <div className="input-container">
-        <input
-          ref={inputRef}
-          type="text"
-          className="chat-input"
-          placeholder={isListening ? "Listening..." : (isProcessing ? "Processing..." : "Message Eva...")}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-          disabled={isProcessing}
-          aria-label="Chat input"
-        />
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      <div className="input-area">
+        <button className="icon-btn" aria-label="Add attachment">
+          <Plus size={24} />
+        </button>
+        <div className="input-container" style={{ position: 'relative' }}>
+          <input
+            ref={inputRef}
+            type="text"
+            className="chat-input"
+            placeholder={isListening ? "Listening..." : (isProcessing ? "Processing..." : "Type or speak naturally...")}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+            disabled={isProcessing}
+          />
+          <button 
+            className={`icon-btn ${isListening ? 'listening' : ''}`} 
+            aria-label="Voice input" 
+            style={{ marginRight: '-8px' }} 
+            onClick={handleVoiceToggle}
+            disabled={isProcessing}
+          >
+            {isListening ? (
+              <div style={{ display: 'flex', gap: '2px', alignItems: 'center', height: '16px' }}>
+                <div className="voice-bar" style={{ animationDelay: '0s' }}></div>
+                <div className="voice-bar" style={{ animationDelay: '0.2s' }}></div>
+                <div className="voice-bar" style={{ animationDelay: '0.4s' }}></div>
+              </div>
+            ) : (
+              <Mic size={20} color={isProcessing ? "var(--color-primary)" : "var(--color-text-muted)"} />
+            )}
+          </button>
+        </div>
         <button 
-          className={`icon-btn ${isListening ? 'listening' : ''}`} 
-          style={{ marginRight: '-4px' }} 
-          onClick={handleVoiceToggle}
-          disabled={isProcessing}
-          aria-label="Voice command"
+          className={`icon-btn ${text.trim() ? 'primary' : ''}`} 
+          onClick={handleSend}
+          disabled={!text.trim() || isProcessing}
+          aria-label="Send message"
         >
-          {isListening ? (
-            <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
-              <div className="voice-bar" style={{ animationDelay: '0s', width: '3px', height: '12px' }}></div>
-              <div className="voice-bar" style={{ animationDelay: '0.2s', width: '3px', height: '12px' }}></div>
-              <div className="voice-bar" style={{ animationDelay: '0.4s', width: '3px', height: '12px' }}></div>
-            </div>
-          ) : (
-            <Mic size={22} color={isProcessing ? "var(--color-primary)" : "var(--color-text-muted)"} />
-          )}
+          <Send size={20} />
         </button>
       </div>
-      <button 
-        className={`icon-btn ${text.trim() ? 'primary' : ''}`} 
-        onClick={handleSend}
-        disabled={!text.trim() || isProcessing}
-        aria-label="Send"
-        style={{ color: text.trim() ? 'var(--color-primary)' : 'var(--color-text-muted)' }}
-      >
-        <Send size={22} />
-      </button>
     </div>
   );
 };

@@ -28,8 +28,8 @@ export const TransferWidget = ({ data }: { data: any }) => {
            <div className="widget-content" style={{ textAlign: 'center', padding: 'var(--spacing-lg)' }}>
               <CheckCircle2 size={48} color="var(--color-success)" style={{ margin: '0 auto var(--spacing-md)' }} />
               <h3 style={{ color: 'var(--color-success)' }}>Transfer Successful</h3>
-              <div style={{ fontSize: '1.75rem', fontWeight: 700, margin: 'var(--spacing-sm) 0', color: 'var(--color-primary)' }}>₹{data.amount.toLocaleString('en-IN')}</div>
-              <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9375rem' }}>Sent to {data.beneficiary.name}</p>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, margin: 'var(--spacing-sm) 0' }}>₹{data.amount.toLocaleString('en-IN')}</div>
+              <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>Sent to {data.beneficiary.name}</p>
               
               <div className="receipt-details" style={{ marginTop: 'var(--spacing-lg)', textAlign: 'left', borderTop: '1px dashed var(--color-border)', paddingTop: 'var(--spacing-md)' }}>
                  <div className="data-row"><span className="data-label">Ref ID</span><span className="data-value">HDFC{Math.floor(Math.random()*100000000)}</span></div>
@@ -37,9 +37,9 @@ export const TransferWidget = ({ data }: { data: any }) => {
                  <div className="data-row"><span className="data-label">Date</span><span className="data-value">{new Date().toLocaleDateString()}</span></div>
               </div>
            </div>
-           <div className="widget-footer" style={{ flexDirection: 'column', gap: '8px' }}>
-              <button className="btn btn-primary btn-full" onClick={() => sendMessage('Done')}>Done</button>
-              <button className="btn btn-outline btn-full" onClick={() => sendMessage('Share')}><Share2 size={18}/> Share Receipt</button>
+           <div className="widget-footer" style={{ gap: '8px' }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => sendMessage('Share')}><Share2 size={16}/> Share</button>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => sendMessage('Done')}>Done</button>
            </div>
         </div>
      );
@@ -50,43 +50,40 @@ export const TransferWidget = ({ data }: { data: any }) => {
   return (
     <div className="banking-widget">
       <div className="widget-header">
-        <span>Review Transfer</span>
-        <img src="https://upload.wikimedia.org/wikipedia/commons/2/28/HDFC_Bank_Logo.svg" alt="HDFC" height="14" />
+        <span>Transfer Summary</span>
+        <img src="https://upload.wikimedia.org/wikipedia/commons/2/28/HDFC_Bank_Logo.svg" alt="HDFC" height="16" />
       </div>
       <div className="widget-content">
         <div style={{ marginBottom: 'var(--spacing-md)', textAlign: 'center' }}>
-           <div style={{ fontWeight: 700, fontSize: '1.25rem', color: 'var(--color-text-main)' }}>{data.beneficiary?.name}</div>
+           <div style={{ fontWeight: 600, fontSize: '1.25rem' }}>{data.beneficiary?.name}</div>
            <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>{data.beneficiary?.bank || 'Verified Account'} •••• {data.beneficiary?.accountEnding || 'XXXX'}</div>
         </div>
-        
-        <div className="receipt-details" style={{ padding: 'var(--spacing-md)', marginBottom: 'var(--spacing-md)' }}>
-            <div className="data-row">
-              <span className="data-label">Amount</span>
-              <span className="data-value amount">₹{data.amount?.toLocaleString('en-IN')}</span>
-            </div>
-            <div className="data-row">
-              <span className="data-label">From</span>
-              <span className="data-value">{selectedAcc.type} •••• {selectedAcc.numberEnding}</span>
-            </div>
-            <div className="data-row">
-              <span className="data-label">Method</span>
-              <span className="data-value">{data.method || 'IMPS'}</span>
-            </div>
-            <div className="data-row">
-              <span className="data-label">Arrival</span>
-              <span className="data-value">{data.arrival || 'Instant'}</span>
-            </div>
+        <div className="data-row">
+          <span className="data-label">Method</span>
+          <span className="data-value">{data.method || 'IMPS'}</span>
+        </div>
+        <div className="data-row">
+          <span className="data-label">From Account</span>
+          <span className="data-value">{selectedAcc.type} •••• {selectedAcc.numberEnding}</span>
+        </div>
+        <div className="data-row">
+          <span className="data-label">Arrival</span>
+          <span className="data-value">{data.arrival || 'Instant'}</span>
+        </div>
+        <div className="data-row" style={{ marginTop: 'var(--spacing-sm)', paddingTop: 'var(--spacing-sm)', borderTop: '1px solid var(--color-border)' }}>
+          <span className="data-label">Amount</span>
+          <span className="data-value amount" style={{ fontSize: '1.25rem' }}>₹{data.amount?.toLocaleString('en-IN')}</span>
         </div>
       </div>
       
       {status === 'pending' && (
-        <div className="widget-footer" style={{ flexDirection: 'column', gap: '10px' }}>
-          <button className="btn btn-primary btn-full" style={{ height: '52px', fontSize: '1rem' }} onClick={handleConfirm}>Confirm & Authenticate <ArrowRight size={20} style={{marginLeft: '8px'}}/></button>
-          <div className="summary-actions-grid">
+        <div className="widget-footer" style={{ flexDirection: 'column', gap: '8px' }}>
+          <div className="summary-actions-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', width: '100%' }}>
             <button className="btn btn-outline" onClick={() => sendMessage('Change method')}>Change Method</button>
             <button className="btn btn-outline" onClick={() => sendMessage('Change account')}>Change Account</button>
           </div>
-          <button className="btn" style={{ background: 'transparent', color: 'var(--color-secondary)', fontSize: '0.875rem' }} onClick={() => sendMessage('Cancel transfer')}>Cancel Transfer</button>
+          <button className="btn btn-secondary btn-full" style={{ border: 'none', color: 'var(--color-primary)', fontWeight: 500 }} onClick={() => sendMessage('Cancel transfer')}>Cancel Transfer</button>
+          <button className="btn btn-primary btn-full" style={{ height: '48px', fontSize: '1rem', marginTop: 'var(--spacing-xs)' }} onClick={handleConfirm}>Confirm & Authenticate <ArrowRight size={18} style={{marginLeft: '8px'}}/></button>
         </div>
       )}
 
@@ -94,11 +91,9 @@ export const TransferWidget = ({ data }: { data: any }) => {
         <div className="auth-overlay">
           <div className="auth-sheet">
             <div style={{ textAlign: 'center' }}>
-              <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: 'rgba(0, 76, 143, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto var(--spacing-md)' }}>
-                <Lock size={28} color="var(--color-primary)" />
-              </div>
-              <h3 style={{ marginBottom: '4px' }}>Secure PIN Required</h3>
-              <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9375rem' }}>Authenticating ₹{data.amount?.toLocaleString('en-IN')} to {data.beneficiary?.name}</p>
+              <Lock size={32} color="var(--color-primary)" />
+              <h3 style={{ marginTop: 'var(--spacing-sm)' }}>Secure Authentication</h3>
+              <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>Enter MPIN to send ₹{data.amount?.toLocaleString('en-IN')} to {data.beneficiary?.name}</p>
             </div>
             
             <div className="pin-dots">
@@ -122,7 +117,6 @@ export const TransferWidget = ({ data }: { data: any }) => {
                 </button>
               ))}
             </div>
-            <button className="btn btn-full" style={{ marginTop: 'var(--spacing-lg)', color: 'var(--color-text-muted)' }} onClick={() => setStatus('pending')}>Back</button>
           </div>
         </div>
       )}
@@ -133,7 +127,7 @@ export const TransferWidget = ({ data }: { data: any }) => {
 export const MethodSelectionWidget = ({ data }: { data: any }) => {
   const { sendAction, contextData } = useChat();
   const methods = [
-    { id: 'IMPS', icon: <Zap size={20} />, title: 'IMPS', desc: 'Instant bank transfer, 24x7. Best for urgent payments.', arrival: 'Instant' },
+    { id: 'IMPS', icon: <Zap size={20} />, title: 'IMPS', desc: 'Instant bank transfer, available 24x7. Best for urgent payments.', arrival: 'Instant' },
     { id: 'NEFT', icon: <Building2 size={20} />, title: 'NEFT', desc: 'Standard bank transfer. Good for regular payments.', arrival: '~ 30 Mins' }
   ];
 
@@ -156,20 +150,20 @@ export const MethodSelectionWidget = ({ data }: { data: any }) => {
   };
 
   return (
-    <div className="banking-widget fade-in-up">
-      <div className="widget-header">Select Payment Method</div>
+    <div className="banking-widget">
+      <div className="widget-header">Choose Payment Method</div>
       <div className="widget-content" style={{ padding: 0 }}>
         {methods.map(m => (
           <div key={m.id} className={`selection-card ${data.method === m.id ? 'active' : ''}`} onClick={() => handleSelect(m)}>
             <div className="selection-card-icon">{m.icon}</div>
             <div className="selection-card-info">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontWeight: 600 }}>{m.title}</span>
-                {data.method === m.id && <span className="recommendation-badge">Active</span>}
+                {data.method === m.id && <span className="recommendation-badge" style={{ backgroundColor: 'var(--color-primary)' }}>Currently Selected</span>}
               </div>
               <div className="selection-card-desc">{m.desc}</div>
             </div>
-            {data.method === m.id && <CheckCircle2 size={20} color="var(--color-success)" />}
+            {data.method === m.id && <CheckCircle2 size={18} color="var(--color-primary)" />}
           </div>
         ))}
       </div>
@@ -199,20 +193,20 @@ export const AccountSelectionWidget = ({ data }: { data: any }) => {
   };
 
   return (
-    <div className="banking-widget fade-in-up">
-      <div className="widget-header">Select Source Account</div>
+    <div className="banking-widget">
+      <div className="widget-header">Choose Account to Pay From</div>
       <div className="widget-content" style={{ padding: 0 }}>
         {mockAccounts.map(acc => (
           <div key={acc.id} className={`selection-card ${data.sourceAccountId === acc.id ? 'active' : ''}`} onClick={() => handleSelect(acc)}>
             <div className="selection-card-icon"><CreditCard size={20} /></div>
             <div className="selection-card-info">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontWeight: 600 }}>{acc.type} •••• {acc.numberEnding}</span>
-                {data.sourceAccountId === acc.id && <span className="recommendation-badge">Active</span>}
+                {data.sourceAccountId === acc.id && <span className="recommendation-badge" style={{ backgroundColor: 'var(--color-primary)' }}>✅ Currently Selected</span>}
               </div>
-              <div className="selection-card-desc">Bal: ₹{acc.balance.toLocaleString('en-IN')}</div>
+              <div className="selection-card-desc">Available Balance: ₹{acc.balance.toLocaleString('en-IN')}</div>
             </div>
-            {data.sourceAccountId === acc.id && <CheckCircle2 size={20} color="var(--color-success)" />}
+            {data.sourceAccountId === acc.id && <CheckCircle2 size={18} color="var(--color-primary)" />}
           </div>
         ))}
       </div>
@@ -223,8 +217,8 @@ export const AccountSelectionWidget = ({ data }: { data: any }) => {
 export const ContactSelectionWidget = ({ data }: { data: any }) => {
   const { sendMessage, setContextData } = useChat();
   return (
-    <div className="banking-widget fade-in-up">
-      <div className="widget-header">Select Beneficiary</div>
+    <div className="banking-widget">
+      <div className="widget-header">Select Recipient</div>
       <div className="widget-content" style={{ padding: 0 }}>
         {data.contacts?.map((contact: any) => (
           <div key={contact.id} className="selection-card" onClick={() => {
@@ -234,19 +228,19 @@ export const ContactSelectionWidget = ({ data }: { data: any }) => {
             }));
             sendMessage(contact.name);
           }}>
-            <div className="selection-card-icon" style={{ borderRadius: '50%', fontWeight: 700, backgroundColor: 'rgba(0, 76, 143, 0.1)' }}>{contact.name.charAt(0)}</div>
+            <div className="selection-card-icon" style={{ borderRadius: '50%', fontWeight: 700 }}>{contact.name.charAt(0)}</div>
             <div className="selection-card-info">
               <div style={{ fontWeight: 600 }}>{contact.name}</div>
               <div className="selection-card-desc">{contact.bank} • {contact.phone || contact.accountEnding}</div>
             </div>
-            <ChevronRight size={20} color="var(--color-text-muted)" />
+            <ChevronRight size={18} color="var(--color-text-muted)" />
           </div>
         ))}
         <div className="selection-card" style={{ backgroundColor: 'var(--color-bg-main)' }} onClick={() => sendMessage('Add new recipient')}>
            <div className="selection-card-icon" style={{ color: 'var(--color-primary)' }}>+</div>
            <div className="selection-card-info">
-              <div style={{ fontWeight: 600 }}>New Beneficiary</div>
-              <div className="selection-card-desc">Add manually or via mobile</div>
+              <div style={{ fontWeight: 600 }}>None of these</div>
+              <div className="selection-card-desc">Add a new beneficiary</div>
            </div>
         </div>
       </div>
@@ -257,23 +251,33 @@ export const ContactSelectionWidget = ({ data }: { data: any }) => {
 export const NewBeneficiaryOptionsWidget = ({ data }: { data: any }) => {
   const { sendMessage } = useChat();
   return (
-    <div className="banking-widget fade-in-up">
-      <div className="widget-header">Search for {data.name}</div>
+    <div className="banking-widget">
+      <div className="widget-header">How to find {data.name}?</div>
       <div className="widget-content" style={{ padding: 0 }}>
-         {[
-           { id: 'mobile', icon: '📱', title: 'Mobile Number', desc: 'Find via bank-linked phone' },
-           { id: 'upi', icon: '🔗', title: 'UPI ID', desc: 'Find via VPA (name@bank)' },
-           { id: 'acct', icon: '🏦', title: 'Account Number', desc: 'Direct Account + IFSC' }
-         ].map(opt => (
-            <button key={opt.id} className="selection-card" style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', borderBottom: '1px solid var(--color-border)' }} onClick={() => sendMessage(`Via ${opt.title}`)}>
-              <div className="selection-card-icon" style={{ fontSize: '1.25rem' }}>{opt.icon}</div>
-              <div className="selection-card-info">
-                  <div style={{ fontWeight: 600, color: 'var(--color-text-main)' }}>{opt.title}</div>
-                  <div className="selection-card-desc">{opt.desc}</div>
-              </div>
-              <ChevronRight size={20} color="var(--color-text-muted)" />
-            </button>
-         ))}
+         <button className="selection-card" style={{ width: '100%', textAlign: 'left' }} onClick={() => sendMessage('Via Mobile Number')}>
+           <div className="selection-card-icon">📱</div>
+           <div className="selection-card-info">
+              <div style={{ fontWeight: 600 }}>Mobile Number</div>
+              <div className="selection-card-desc">Lookup by phone number linked to bank</div>
+           </div>
+           <ChevronRight size={18} color="var(--color-text-muted)" />
+         </button>
+         <button className="selection-card" style={{ width: '100%', textAlign: 'left' }} onClick={() => sendMessage('Via UPI ID')}>
+           <div className="selection-card-icon">🔗</div>
+           <div className="selection-card-info">
+              <div style={{ fontWeight: 600 }}>UPI ID</div>
+              <div className="selection-card-desc">Lookup by VPA (e.g. name@bank)</div>
+           </div>
+           <ChevronRight size={18} color="var(--color-text-muted)" />
+         </button>
+         <button className="selection-card" style={{ width: '100%', textAlign: 'left' }} onClick={() => sendMessage('Via Account Number')}>
+           <div className="selection-card-icon">🏦</div>
+           <div className="selection-card-info">
+              <div style={{ fontWeight: 600 }}>Account Number + IFSC</div>
+              <div className="selection-card-desc">Traditional bank details lookup</div>
+           </div>
+           <ChevronRight size={18} color="var(--color-text-muted)" />
+         </button>
       </div>
     </div>
   );
@@ -282,28 +286,20 @@ export const NewBeneficiaryOptionsWidget = ({ data }: { data: any }) => {
 export const WelcomeActionsWidget = () => {
   const { sendMessage } = useChat();
   return (
-    <div className="welcome-actions fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '12px' }}>
-      {[
-        { label: 'Send Money', icon: '💸', text: 'Send money' },
-        { label: 'Check Balance', icon: '🏦', text: 'Check balance' },
-        { label: 'Customer Care', icon: '🎫', text: 'Support' }
-      ].map(act => (
-        <button key={act.label} className="btn btn-outline btn-full" style={{ justifyContent: 'flex-start', background: 'var(--color-bg-card)', padding: '16px' }} onClick={() => sendMessage(act.text)}>
-            <span style={{ fontSize: '1.25rem', marginRight: '8px' }}>{act.icon}</span>
-            <span style={{ flex: 1, textAlign: 'left' }}>{act.label}</span>
-            <ChevronRight size={18} color="var(--color-text-muted)" />
-        </button>
-      ))}
+    <div className="welcome-actions fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+      <button className="btn btn-outline" style={{ justifyContent: 'flex-start', background: 'var(--color-bg-main)' }} onClick={() => sendMessage('Send money')}>💸 Send Money</button>
+      <button className="btn btn-outline" style={{ justifyContent: 'flex-start', background: 'var(--color-bg-main)' }} onClick={() => sendMessage('Check balance')}>🏦 Check Balance</button>
+      <button className="btn btn-outline" style={{ justifyContent: 'flex-start', background: 'var(--color-bg-main)' }} onClick={() => sendMessage('Support')}>🎫 Customer Care</button>
     </div>
   );
 };
 
 export const SuccessStatusWidget = ({ data }: { data: any }) => {
   return (
-    <div className="banking-widget fade-in-up" style={{ textAlign: 'center', padding: 'var(--spacing-xl) var(--spacing-lg)' }}>
-      <CheckCircle2 size={64} color="var(--color-success)" style={{ margin: '0 auto var(--spacing-md)' }} />
-      <h2 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text-main)' }}>{data.title}</h2>
-      <p style={{ color: 'var(--color-text-secondary)', fontSize: '1rem' }}>{data.message}</p>
+    <div className="banking-widget" style={{ textAlign: 'center', padding: 'var(--spacing-lg)' }}>
+      <CheckCircle2 size={48} color="var(--color-success)" style={{ margin: '0 auto var(--spacing-md)' }} />
+      <h3 style={{ marginBottom: 'var(--spacing-xs)' }}>{data.title}</h3>
+      <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>{data.message}</p>
     </div>
   );
 };
