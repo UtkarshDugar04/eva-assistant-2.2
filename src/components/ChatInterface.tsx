@@ -83,7 +83,10 @@ export const InputArea = () => {
       sendMessage(trimmed);
       setText('');
       textRef.current = '';
-      if (recognitionRef.current) recognitionRef.current.stop();
+      if (recognitionRef.current) {
+          recognitionRef.current.onend = null; // Prevent onend firing after manual send
+          recognitionRef.current.stop();
+      }
       inputRef.current?.focus();
     }
   };
@@ -148,15 +151,19 @@ export const InputArea = () => {
       setIsListening(false);
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       
-      const finalVal = textRef.current.trim() || text.trim();
+      // Use textRef exclusively for automatic submission to avoid stale closures
+      const finalVal = textRef.current.trim();
       if (finalVal) {
         setIsProcessing(true);
         setTimeout(() => {
-            handleSend();
+            sendMessage(finalVal);
+            setText('');
+            textRef.current = '';
             setIsProcessing(false);
         }, 400);
       } else {
         setTimeout(() => {
+            // Check text state as well for manual typing + voice hybrid cases
             if (!textRef.current && !text) {
                 addBotMessage("I couldn't hear anything. Please try again.");
             }
