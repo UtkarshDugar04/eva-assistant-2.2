@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useChat } from '../store/ChatContext';
-import { CheckCircle2, CreditCard, ChevronRight, Lock, Zap, Building2, Landmark, Link2, Share2, ArrowRight } from 'lucide-react';
+import { CheckCircle2, CreditCard, ChevronRight, Lock, Zap, Building2, Share2, ArrowRight } from 'lucide-react';
 import { mockAccounts } from '../data/mockData';
 
 export const TransferWidget = ({ data }: { data: any }) => {
@@ -130,9 +130,7 @@ export const MethodSelectionWidget = ({ data }: { data: any }) => {
   const { sendMessage, setContextData } = useChat();
   const methods = [
     { id: 'IMPS', icon: <Zap size={20} />, title: 'IMPS', desc: 'Instant bank transfer, available 24x7. Best for urgent payments.', arrival: 'Instant' },
-    { id: 'NEFT', icon: <Building2 size={20} />, title: 'NEFT', desc: 'Standard bank transfer. Good for normal payments.', arrival: '~ 30 Mins' },
-    { id: 'RTGS', icon: <Landmark size={20} />, title: 'RTGS', desc: 'For higher-value transfers (min. ₹2 Lakhs).', arrival: 'Near Instant', min: 200000 },
-    { id: 'UPI', icon: <Link2 size={20} />, title: 'UPI', desc: 'Fast transfer using UPI network.', arrival: 'Instant' }
+    { id: 'NEFT', icon: <Building2 size={20} />, title: 'NEFT', desc: 'Standard bank transfer. Good for regular payments.', arrival: '~ 30 Mins' }
   ];
 
   const handleSelect = (method: any) => {
@@ -145,15 +143,15 @@ export const MethodSelectionWidget = ({ data }: { data: any }) => {
 
   return (
     <div className="banking-widget">
-      <div className="widget-header">Choose Transfer Method</div>
+      <div className="widget-header">Choose Payment Method</div>
       <div className="widget-content" style={{ padding: 0 }}>
-        {methods.filter(m => !m.min || data.amount >= m.min).map(m => (
+        {methods.map(m => (
           <div key={m.id} className={`selection-card ${data.method === m.id ? 'active' : ''}`} onClick={() => handleSelect(m)}>
             <div className="selection-card-icon">{m.icon}</div>
             <div className="selection-card-info">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontWeight: 600 }}>{m.title}</span>
-                {data.amount < 200000 && m.id === 'IMPS' && <span className="recommendation-badge">Recommended</span>}
+                {data.method === m.id && <span className="recommendation-badge" style={{ backgroundColor: 'var(--color-primary)' }}>Currently Selected</span>}
               </div>
               <div className="selection-card-desc">{m.desc}</div>
             </div>
@@ -178,14 +176,17 @@ export const AccountSelectionWidget = ({ data }: { data: any }) => {
 
   return (
     <div className="banking-widget">
-      <div className="widget-header">Choose Source Account</div>
+      <div className="widget-header">Choose Account to Pay From</div>
       <div className="widget-content" style={{ padding: 0 }}>
         {mockAccounts.map(acc => (
           <div key={acc.id} className={`selection-card ${data.sourceAccount === acc.type ? 'active' : ''}`} onClick={() => handleSelect(acc)}>
             <div className="selection-card-icon"><CreditCard size={20} /></div>
             <div className="selection-card-info">
-              <div style={{ fontWeight: 600 }}>{acc.type} •••• {acc.numberEnding}</div>
-              <div className="selection-card-desc">Available balance: ₹{acc.balance.toLocaleString('en-IN')}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontWeight: 600 }}>{acc.type} •••• {acc.numberEnding}</span>
+                {data.sourceAccount === acc.type && <span className="recommendation-badge" style={{ backgroundColor: 'var(--color-primary)' }}>Selected</span>}
+              </div>
+              <div className="selection-card-desc">Available Balance: ₹{acc.balance.toLocaleString('en-IN')}</div>
             </div>
             {data.sourceAccount === acc.type && <CheckCircle2 size={18} color="var(--color-primary)" />}
           </div>

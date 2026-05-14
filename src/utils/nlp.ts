@@ -98,7 +98,6 @@ export function parseUserInput(text: string): ParsedInput {
   if (/\b(upi)\b/.test(lowerText)) result.entities.method = 'UPI';
 
   const words = lowerText.split(/[\s,]+/);
-  let bestMatch = null;
   let bestDistance = Infinity;
 
   const benMatches = mockBeneficiaries.filter(b => {
@@ -113,7 +112,6 @@ export function parseUserInput(text: string): ParsedInput {
                    isMatch = true;
                    if (dist < bestDistance) {
                        bestDistance = dist;
-                       bestMatch = b;
                    }
                }
            }
@@ -123,9 +121,8 @@ export function parseUserInput(text: string): ParsedInput {
   });
 
   if (benMatches.length > 0) {
-    if (benMatches.length === 1 || (bestDistance <= 1 && bestMatch)) {
-      const match = bestDistance <= 1 && bestMatch ? bestMatch : benMatches[0];
-      result.entities.beneficiary = match;
+    if (benMatches.length === 1 || bestDistance <= 1) {
+      result.entities.beneficiary = benMatches[0];
     } else {
       result.entities.multipleBeneficiaries = benMatches;
     }
@@ -192,6 +189,31 @@ export function generateBotResponse(
      return { text: "Transfer cancelled. No money has been sent. How else can I help?", updatedContext };
   }
 
+  const lowerRaw = rawText.toLowerCase().trim();
+
+  // EXPLICIT ACTION HANDLERS
+  if (lowerRaw.includes('change method')) {
+      return {
+          text: "Choose your preferred payment method.",
+          widget: 'method_selection',
+          widgetData: updatedContext.transfer,
+          updatedContext
+      };
+  }
+  if (lowerRaw.includes('change account')) {
+      return {
+          text: "Choose the account you want to pay from.",
+          widget: 'account_selection',
+          widgetData: updatedContext.transfer,
+          updatedContext
+      };
+  }
+  if (lowerRaw.includes('change recipient')) {
+      updatedContext.transfer.recipient = null;
+      updatedContext.transfer.stage = 'start';
+      return { text: "Who would you like to send money to?", updatedContext };
+  }
+
   const isTransferring = updatedContext.intent === 'transfer' || intent === 'transfer' || (intent === 'unknown' && updatedContext.intent === 'transfer');
 
   if (isTransferring) {
@@ -228,7 +250,6 @@ export function generateBotResponse(
       }
 
       if (t.stage === 'disambiguate_recipient' && (originalIntent === 'unknown' || originalIntent === 'transfer')) {
-         const lowerRaw = rawText.toLowerCase().trim();
          const match = t.multipleBeneficiaries?.find((b: any) => 
             b.name.toLowerCase() === lowerRaw || lowerRaw.includes(b.name.toLowerCase()) || 
             (lowerRaw === '1' || lowerRaw === 'first') && t.multipleBeneficiaries.indexOf(b) === 0
