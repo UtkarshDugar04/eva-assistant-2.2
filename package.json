@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "homepage": "https://UtkarshDugar04.github.io/eva-assistant/",
+  "homepage": "https://UtkarshDugar04.github.io/eva-assistant-2.2/",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -16,7 +16,8 @@
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.14.0",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5"
+    "react-dom": "^19.2.5",
+    "string-similarity": "^4.0.4"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

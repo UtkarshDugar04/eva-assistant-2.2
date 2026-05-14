@@ -523,6 +523,31 @@ export const FallbackWidget = () => {
   );
 };
 
+export const NewBeneficiaryOptionsWidget = ({ data }: { data: any }) => {
+  const { addBotMessage } = useChat();
+  return (
+    <div className="banking-widget">
+      <div className="widget-header">
+        <span>Find {data.name}</span>
+      </div>
+      <div className="widget-content" style={{ padding: 0 }}>
+         <button className="contact-card" style={{ width: '100%', padding: 'var(--spacing-md)', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', textAlign: 'left', background: 'none', border: 'none' }} onClick={() => addBotMessage(`What is ${data.name}'s Mobile Number?`)}>
+           <div style={{ fontWeight: 600 }}>📱 Mobile Number</div>
+           <ChevronRight size={20} color="var(--color-text-muted)" />
+         </button>
+         <button className="contact-card" style={{ width: '100%', padding: 'var(--spacing-md)', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', textAlign: 'left', background: 'none', border: 'none' }} onClick={() => addBotMessage(`What is ${data.name}'s UPI ID?`)}>
+           <div style={{ fontWeight: 600 }}>🔗 UPI ID</div>
+           <ChevronRight size={20} color="var(--color-text-muted)" />
+         </button>
+         <button className="contact-card" style={{ width: '100%', padding: 'var(--spacing-md)', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', textAlign: 'left', background: 'none', border: 'none' }} onClick={() => addBotMessage(`What is ${data.name}'s Account Number & IFSC?`)}>
+           <div style={{ fontWeight: 600 }}>🏦 Account Number</div>
+           <ChevronRight size={20} color="var(--color-text-muted)" />
+         </button>
+      </div>
+    </div>
+  );
+};
+
 export const WidgetRenderer = ({ type, data }: { type: string; data: any }) => {
   switch (type) {
     case 'transfer_summary': return <TransferWidget data={data} />;
@@ -536,6 +561,7 @@ export const WidgetRenderer = ({ type, data }: { type: string; data: any }) => {
     case 'support_ticket': return <SupportTicketWidget />;
     case 'welcome_actions': return <WelcomeActionsWidget />;
     case 'fallback_widget': return <FallbackWidget />;
+    case 'new_beneficiary_options': return <NewBeneficiaryOptionsWidget data={data} />;
     default: return null;
   }
 };

@@ -1,19 +1,30 @@
 import { mockBeneficiaries, mockCards, mockAccount, mockAutopays } from '../data/mockData';
 
-export type Intent = 'transfer' | 'block_card' | 'kyc' | 'support' | 'autopay' | 'balance' | 'show_cards' | 'unknown';
+export type Intent = 'transfer' | 'block_card' | 'kyc' | 'support' | 'autopay' | 'balance' | 'show_cards' | 'unknown' | 'cancel' | 'pay_bill';
 
 export interface ParsedInput {
   intent: Intent;
   entities: Record<string, any>;
+  isCorrection?: boolean;
 }
 
-// Simple typo mapping
+// Typo mapping & synonyms
 const typoMap: Record<string, string> = {
   'suhni': 'suhani',
+  'suhaani': 'suhani',
+  'rahool': 'rahul',
+  'prya': 'priya',
   'autpay': 'autopay',
   'balnce': 'balance',
   'blok': 'block',
-  'updte': 'update'
+  'updte': 'update',
+  'bhejo': 'send',
+  'karo': 'do',
+  'karna hai': 'do',
+  'ko': 'to',
+  'paanch': '5',
+  'hazaar': 'thousand',
+  'lac': 'lakh'
 };
 
 function normalizeText(text: string): string {
@@ -24,101 +35,160 @@ function normalizeText(text: string): string {
     normalized = normalized.replace(new RegExp(`\\b${typo}\\b`, 'g'), typoMap[typo]);
   });
   
-  // Replace "five hundred" with "500" etc.
-  normalized = normalized.replace(/five hundred/g, '500');
-  normalized = normalized.replace(/one thousand/g, '1000');
-  normalized = normalized.replace(/fifty/g, '50');
+  // Replace text numbers
+  normalized = normalized.replace(/\b(?:one|1)\s*thousand\b/g, '1000');
+  normalized = normalized.replace(/\b(?:two|2)\s*thousand\b/g, '2000');
+  normalized = normalized.replace(/\b(?:five|5)\s*thousand\b/g, '5000');
+  normalized = normalized.replace(/\b(\d+)\s*k\b/g, (_, num) => String(parseInt(num) * 1000));
+  normalized = normalized.replace(/\b(\d+)\s*lakh\b/g, (_, num) => String(parseInt(num) * 100000));
+  normalized = normalized.replace(/\bfifty\b/g, '50');
   
   return normalized;
+}
+
+// Basic Levenshtein distance for fuzzy matching
+function levenshtein(a: string, b: string): number {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) == a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1));
+      }
+    }
+  }
+  return matrix[b.length][a.length];
 }
 
 export function parseUserInput(text: string): ParsedInput {
   const lowerText = normalizeText(text);
   const result: ParsedInput = { intent: 'unknown', entities: {} };
 
-  // Always attempt to extract amount
+  // 1. Correction Signals
+  if (/\b(actually|no|instead|wait|sorry|correction)\b/i.test(lowerText)) {
+    result.isCorrection = true;
+  }
+
+  // 2. Cancellation
+  if (/\b(cancel|stop|abort|nevermind)\b/i.test(lowerText)) {
+    result.intent = 'cancel';
+    return result;
+  }
+
+  // 3. Amount Extraction (handles ₹1000, 1000, 5000 rs, etc.)
   const amountMatch = lowerText.match(/(?:₹|rs\.?|rupees?)?\s*(\d+(?:,\d+)*(?:\.\d+)?)\s*(?:rs|rupees)?/i);
   if (amountMatch) {
       result.entities.amount = parseInt(amountMatch[1].replace(/,/g, ''), 10);
   }
 
-  // 1. Exact match in the mock database (highest priority)
-  const exactMatch = mockBeneficiaries.find(b => lowerText.includes(b.name.toLowerCase()));
+  // 4. Urgency & Method Extraction
+  if (/\b(urgent|urgently|now|immediately|fast)\b/.test(lowerText)) result.entities.urgency = 'urgent';
+  if (/\b(imps)\b/.test(lowerText)) result.entities.method = 'IMPS';
+  if (/\b(neft)\b/.test(lowerText)) result.entities.method = 'NEFT';
+  if (/\b(upi)\b/.test(lowerText)) result.entities.method = 'UPI';
   
-  if (exactMatch) {
-    result.entities.beneficiaryId = exactMatch.id;
-    result.entities.beneficiaryName = exactMatch.name;
-    result.entities.beneficiaryObj = exactMatch;
-  } else {
-    // 2. Fuzzy matching if no exact match
-    const words = lowerText.split(/[\s,]+/);
-    const benMatches = mockBeneficiaries.filter(b => {
-      const nameParts = b.name.toLowerCase().split(' ');
-      return nameParts.some(part => words.includes(part) || words.some(w => part.includes(w) && w.length >= 4));
-    });
-
-    if (benMatches.length > 0) {
-      if (benMatches.length === 1) {
-        result.entities.beneficiaryId = benMatches[0].id;
-        result.entities.beneficiaryName = benMatches[0].name;
-        result.entities.beneficiaryObj = benMatches[0];
-      } else {
-        result.entities.multipleBeneficiaries = benMatches;
-      }
-    }
+  if (result.entities.urgency === 'urgent' && !result.entities.method) {
+      result.entities.method = 'IMPS'; // Default urgent to IMPS
   }
 
-  // Balance intent
-  if (lowerText.includes('balance') || lowerText.includes('how much money')) {
+  // 5. Beneficiary Extraction
+  const words = lowerText.split(/[\s,]+/);
+  let bestMatch = null;
+  let bestDistance = Infinity;
+
+  // Exact or fuzzy match on known beneficiaries
+  const benMatches = mockBeneficiaries.filter(b => {
+    const nameParts = b.name.toLowerCase().split(' ');
+    const cleanWords = words.filter(w => !['send', 'transfer', 'pay', 'to', 'ko', 'rupees', 'rs', 'imps', 'neft', 'upi', 'bhejna', 'hai'].includes(w) && isNaN(Number(w)));
+    
+    let isMatch = false;
+    for (const part of nameParts) {
+       for (const word of cleanWords) {
+           if (word.length >= 3) {
+               const dist = levenshtein(part, word);
+               if (dist <= 2 || part.includes(word)) {
+                   isMatch = true;
+                   if (dist < bestDistance) {
+                       bestDistance = dist;
+                       bestMatch = b;
+                   }
+               }
+           }
+       }
+    }
+    return isMatch;
+  });
+
+  if (benMatches.length > 0) {
+    if (benMatches.length === 1 || (bestDistance <= 1 && bestMatch)) {
+      const match = bestDistance <= 1 && bestMatch ? bestMatch : benMatches[0];
+      result.entities.beneficiaryId = match.id;
+      result.entities.beneficiaryName = match.name;
+      result.entities.beneficiaryObj = match;
+    } else {
+      result.entities.multipleBeneficiaries = benMatches;
+    }
+  } else {
+     // Check for new beneficiary
+     const toMatch = lowerText.match(/(?:to|ko|pay)\s+([a-z]+)/i);
+     if (toMatch && !['my', 'the', 'bill', 'credit'].includes(toMatch[1])) {
+         result.entities.newBeneficiaryName = toMatch[1].charAt(0).toUpperCase() + toMatch[1].slice(1);
+     }
+  }
+
+  // 6. Intent Classification
+  if (/\b(balance|how much money|kitna paisa)\b/.test(lowerText)) {
     result.intent = 'balance';
     return result;
   }
-
-  // Active Cards intent
-  if (lowerText.includes('show my cards') || lowerText.includes('active cards') || lowerText.includes('my debit card') || lowerText.includes('my credit card')) {
+  if (/\b(show my cards|active cards|debit card|credit card list)\b/.test(lowerText)) {
     result.intent = 'show_cards';
     return result;
   }
-
-  // Block card intent
-  if (lowerText.includes('block') || lowerText.includes('freeze') || lowerText.includes('lost')) {
+  if (/\b(block|freeze|lost)\b/.test(lowerText)) {
     result.intent = 'block_card';
     if (lowerText.includes('debit')) result.entities.cardType = 'Debit';
     if (lowerText.includes('credit')) result.entities.cardType = 'Credit';
     return result;
   }
-
-  // Autopay intent
-  if (lowerText.includes('autopay') || lowerText.includes('recurring') || lowerText.includes('subscription') || lowerText.includes('mandate')) {
+  if (/\b(bill|electricity|water|recharge)\b/.test(lowerText)) {
+    result.intent = 'pay_bill';
+    if (lowerText.includes('electricity')) result.entities.biller = 'Electricity';
+    if (lowerText.includes('credit card')) result.entities.biller = 'Credit Card';
+    return result;
+  }
+  if (/\b(autopay|recurring|subscription|mandate)\b/.test(lowerText)) {
     result.intent = 'autopay';
     if (lowerText.includes('netflix')) result.entities.merchant = 'Netflix';
     else if (lowerText.includes('show') || lowerText.includes('my')) result.entities.listAll = true;
     return result;
   }
-
-  // Transfer intent
-  if (lowerText.includes('send') || lowerText.includes('transfer') || lowerText.includes('pay') || lowerText.includes('give')) {
+  if (/\b(send|transfer|pay|give|bhejna|bhejo|ko|settle|owe)\b/.test(lowerText) && result.intent !== 'pay_bill') {
     result.intent = 'transfer';
     return result;
   }
-
-  // Support / Dispute intent
-  if (lowerText.includes('failed') || lowerText.includes('deducted') || lowerText.includes('issue') || lowerText.includes('human') || lowerText.includes('agent') || lowerText.includes('customer care') || lowerText.includes('support') || lowerText.includes('talk') || lowerText.includes('call') || lowerText.includes('complaint')) {
+  if (/\b(failed|deducted|issue|human|agent|customer care|support|talk|call|complaint)\b/.test(lowerText)) {
     result.intent = 'support';
-    if (lowerText.includes('human') || lowerText.includes('agent') || lowerText.includes('customer care') || lowerText.includes('support') || lowerText.includes('talk') || lowerText.includes('call') || lowerText.includes('complaint')) {
+    if (/\b(human|agent|customer care|support|talk|call|complaint)\b/.test(lowerText)) {
       result.entities.escalate = true;
     }
     return result;
   }
-  
-  // KYC intent
-  if (lowerText.includes('kyc') || lowerText.includes('aadhaar') || lowerText.includes('address')) {
+  if (/\b(kyc|aadhaar|address)\b/.test(lowerText)) {
     result.intent = 'kyc';
     return result;
   }
 
-  // If there's an amount or a beneficiary detected, we assume it might be related to a pending transfer
-  // We keep intent as 'unknown' so it merges with context
+  // Fallback
+  if (result.entities.amount || result.entities.beneficiaryName || result.entities.newBeneficiaryName) {
+      result.intent = 'unknown'; 
+  }
+
   return result;
 }
 
@@ -128,41 +198,41 @@ export function generateBotResponse(
   rawText: string
 ): { text: string; widget?: any; widgetData?: any; updatedContext: any } {
   
-  let { intent, entities } = parsed;
+  let { intent, entities, isCorrection } = parsed;
   let updatedContext = { ...contextData };
 
-  // Handling interruptions: if a new explicit intent is detected, push current to stack, unless it's unknown
-  if (intent !== 'unknown' && intent !== updatedContext.intent && updatedContext.intent) {
+  if (intent === 'cancel') {
+     return { text: "No problem, I've cancelled that request. What else can I help you with?", updatedContext: { ...updatedContext, intent: null, entities: {} } };
+  }
+
+  if (isCorrection && updatedContext.intent) {
+      entities = { ...updatedContext.entities, ...entities };
+      intent = updatedContext.intent;
+      updatedContext.entities = entities;
+  } else if (intent !== 'unknown' && intent !== updatedContext.intent && updatedContext.intent) {
     if (!updatedContext.stack) updatedContext.stack = [];
     updatedContext.stack.push({ intent: updatedContext.intent, entities: { ...updatedContext.entities } });
     updatedContext.intent = intent;
     updatedContext.entities = { ...entities };
   } else if (intent === 'unknown' && updatedContext.intent) {
-    // If unknown intent but we have context, merge entities (slot filling)
     intent = updatedContext.intent;
-    
-    // Check if they clarified from a multiple choice list
     if (updatedContext.entities.multipleBeneficiaries) {
       const lowerRaw = rawText.toLowerCase().trim();
       const exactContextMatch = updatedContext.entities.multipleBeneficiaries.find((b: any) => 
          b.name.toLowerCase() === lowerRaw || lowerRaw.includes(b.name.toLowerCase()) || 
-         lowerRaw === 'first one' && updatedContext.entities.multipleBeneficiaries.indexOf(b) === 0 ||
-         lowerRaw === 'option 1' && updatedContext.entities.multipleBeneficiaries.indexOf(b) === 0 ||
-         lowerRaw === 'option 2' && updatedContext.entities.multipleBeneficiaries.indexOf(b) === 1
+         (lowerRaw === 'first one' || lowerRaw === 'option 1' || lowerRaw === '1') && updatedContext.entities.multipleBeneficiaries.indexOf(b) === 0 ||
+         (lowerRaw === 'option 2' || lowerRaw === '2') && updatedContext.entities.multipleBeneficiaries.indexOf(b) === 1
       );
-      
       if (exactContextMatch) {
         entities.beneficiaryId = exactContextMatch.id;
         entities.beneficiaryName = exactContextMatch.name;
         entities.beneficiaryObj = exactContextMatch;
-        entities.multipleBeneficiaries = undefined; // Cleared!
+        entities.multipleBeneficiaries = undefined;
       }
     }
-
-    if (parsed.entities.beneficiaryName) {
-       entities.multipleBeneficiaries = undefined; // They provided a specific one via exact match
+    if (parsed.entities.beneficiaryName || parsed.entities.newBeneficiaryName) {
+       entities.multipleBeneficiaries = undefined; 
     }
-
     entities = { ...updatedContext.entities, ...entities };
     updatedContext.entities = entities;
   } else if (intent !== 'unknown') {
@@ -170,7 +240,6 @@ export function generateBotResponse(
     updatedContext.entities = { ...updatedContext.entities, ...entities };
     entities = updatedContext.entities;
   } else if (intent === 'unknown' && Object.keys(entities).length > 0 && !updatedContext.intent) {
-     // Default to transfer if entities were detected out of the blue
      intent = 'transfer';
      updatedContext.intent = 'transfer';
      updatedContext.entities = { ...entities };
@@ -181,17 +250,12 @@ export function generateBotResponse(
       const popped = updatedContext.stack.pop();
       updatedContext.intent = popped.intent;
       updatedContext.entities = popped.entities;
-      
       let resumeText = '';
-      if (popped.intent === 'transfer') {
-        resumeText = `\n\nWould you still like to proceed with your transfer?`;
-      } else if (popped.intent === 'block_card') {
-        resumeText = `\n\nReturning to your card blocking request...`;
-      }
+      if (popped.intent === 'transfer') resumeText = `\n\nWould you still like to proceed with your transfer?`;
+      else if (popped.intent === 'block_card') resumeText = `\n\nReturning to your card blocking request...`;
       return currentText + resumeText;
     }
-    // Clear context if task is done and no stack
-    updatedContext = { stack: [] };
+    updatedContext = { ...updatedContext, intent: null, entities: {} };
     return currentText;
   };
 
@@ -199,38 +263,56 @@ export function generateBotResponse(
     case 'transfer':
       if (entities.amount && entities.amount > (updatedContext.balance ?? mockAccount.balance)) {
          return {
-           text: `Insufficient balance.\n\nAvailable balance: ₹${(updatedContext.balance ?? mockAccount.balance).toLocaleString('en-IN')}\nRequested transfer: ₹${entities.amount.toLocaleString('en-IN')}\n\nWould you like to send a smaller amount or cancel?`,
-           updatedContext: { ...updatedContext, entities: { ...entities, amount: null } } // Reset amount so user can input again
+           text: `Your available balance is ₹${(updatedContext.balance ?? mockAccount.balance).toLocaleString('en-IN')}. Would you like to send a lower amount or use another account?`,
+           updatedContext: { ...updatedContext, entities: { ...entities, amount: null } }
          };
       }
 
-      if (entities.amount && entities.beneficiaryName) {
+      if (entities.amount && (entities.beneficiaryName || entities.newBeneficiaryName)) {
+        if (entities.newBeneficiaryName && !entities.beneficiaryName) {
+            return {
+                text: `I don't see ${entities.newBeneficiaryName} saved. How would you like to find them?`,
+                widget: 'new_beneficiary_options',
+                widgetData: { name: entities.newBeneficiaryName, amount: entities.amount },
+                updatedContext
+            };
+        }
+
+        const methodStr = entities.method ? ` through ${entities.method}` : '';
+        const prefix = isCorrection ? 'Got it, updated.' : 'Got it —';
         return {
-          text: `Confirm transfer details below.`,
+          text: `${prefix} You are sending ₹${entities.amount.toLocaleString('en-IN')} to ${entities.beneficiaryName}${methodStr} from Savings Account ending ${mockAccount.numberEnding}.`,
           widget: 'transfer_summary',
-          widgetData: { amount: entities.amount, beneficiary: mockBeneficiaries.find(b => b.id === entities.beneficiaryId) },
-          updatedContext // Keep context active in case they interrupt before clicking confirm
+          widgetData: { amount: entities.amount, beneficiary: mockBeneficiaries.find(b => b.id === entities.beneficiaryId), method: entities.method || 'IMPS' },
+          updatedContext 
         };
       } else if (entities.amount && entities.multipleBeneficiaries) {
         return { 
-          text: `I found ${entities.multipleBeneficiaries.length} matching contacts. Please choose one:`, 
+          text: `I found ${entities.multipleBeneficiaries.length} ${entities.multipleBeneficiaries[0].name.split(' ')[0]}s. Which one would you like?`, 
           widget: 'contact_selection',
           widgetData: { contacts: entities.multipleBeneficiaries, amount: entities.amount },
           updatedContext 
         };
       } else if (entities.amount) {
-        return { text: `Who would you like to send ₹${entities.amount} to?`, updatedContext };
+        return { text: `Who would you like to send ₹${entities.amount.toLocaleString('en-IN')} to?`, updatedContext };
       } else if (entities.beneficiaryName) {
-        return { text: `How much would you like to send to ${entities.beneficiaryName}?`, updatedContext };
+        return { text: `Sure, how much would you like to send to ${entities.beneficiaryName}?`, updatedContext };
       } else if (entities.multipleBeneficiaries) {
         return { 
-          text: `I found ${entities.multipleBeneficiaries.length} matching contacts. Please choose one:`, 
+          text: `I found ${entities.multipleBeneficiaries.length} matches. Which one would you like?`, 
           widget: 'contact_selection',
           widgetData: { contacts: entities.multipleBeneficiaries },
           updatedContext 
         };
+      } else if (entities.newBeneficiaryName) {
+        return {
+           text: `I don't have ${entities.newBeneficiaryName} saved. Would you like to find them using mobile number, UPI ID, or account number?`,
+           widget: 'new_beneficiary_options',
+           widgetData: { name: entities.newBeneficiaryName },
+           updatedContext
+        };
       }
-      return { text: 'Who would you like to send money to, and how much?', updatedContext };
+      return { text: 'I can help with that. Who would you like to pay?', updatedContext };
 
     case 'block_card':
       const cardTypeStr = entities.cardType ? entities.cardType + ' ' : '';
@@ -266,9 +348,6 @@ export function generateBotResponse(
       };
 
     case 'kyc':
-      if (updatedContext.kycDone) {
-        return { text: checkStackForResume('Your KYC has already been successfully updated and is currently under review.'), updatedContext };
-      }
       return {
         text: 'I can help you update your KYC. We will need to verify your Aadhaar via OTP. Would you like to proceed?',
         widget: 'kyc_status',
@@ -297,7 +376,6 @@ export function generateBotResponse(
 
     default:
       if (Object.keys(entities).length > 0) {
-          // Extracted an entity but no intent.
           return { text: "I captured that, but I'm not sure what you want to do with it. Try saying 'Send money' or 'Block card'.", updatedContext };
       }
       return {
