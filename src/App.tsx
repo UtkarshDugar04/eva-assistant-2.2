@@ -11,9 +11,9 @@ function App() {
   // or a dedicated tab. For the prototype, we show the full chat interface.
 
   return (
-    <div style={{ width: '100vw', height: '100vh', backgroundColor: '#e2e8f0', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+    <div style={{ width: '100vw', height: '100dvh', backgroundColor: '#e2e8f0', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
       {/* Simulation of a mobile device frame container */}
-      <div style={{ width: '100%', height: '100%', maxWidth: '480px', maxHeight: '900px', backgroundColor: '#fff', position: 'relative', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+      <div style={{ width: '100%', height: '100%', maxWidth: '480px', backgroundColor: '#fff', position: 'relative', overflow: 'hidden' }} className="main-wrapper">
         {isOpen ? (
           <ChatProvider>
             <ChatInterface />
@@ -48,6 +48,15 @@ function App() {
           </div>
         )}
       </div>
+      <style>{`
+        @media (min-width: 481px) {
+          .main-wrapper {
+            max-height: 900px;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+          }
+        }
+      `}</style>
     </div>
   );
 }

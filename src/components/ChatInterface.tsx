@@ -84,7 +84,10 @@ export const InputArea = () => {
       sendMessage(trimmed);
       setText('');
       textRef.current = '';
-      if (recognitionRef.current) recognitionRef.current.stop();
+      if (recognitionRef.current) {
+          recognitionRef.current.onend = null;
+          recognitionRef.current.stop();
+      }
       inputRef.current?.focus();
     }
   };
@@ -155,15 +158,16 @@ export const InputArea = () => {
       setIsListening(false);
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       
-      const finalVal = textRef.current.trim() || text.trim();
+      const finalVal = textRef.current.trim();
       if (finalVal) {
         setIsProcessing(true);
         setTimeout(() => {
-            handleSend();
+            sendMessage(finalVal);
+            setText('');
+            textRef.current = '';
             setIsProcessing(false);
         }, 300);
       } else {
-        // Only show error if absolutely nothing was captured
         setTimeout(() => {
             if (!textRef.current && !text) {
                 addBotMessage("I couldn't hear anything. Please try again.");
