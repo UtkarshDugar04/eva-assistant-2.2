@@ -80,16 +80,12 @@ export const TransferWidget = ({ data }: { data: any }) => {
       
       {status === 'pending' && (
         <div className="widget-footer" style={{ flexDirection: 'column', gap: '8px' }}>
-          <button className="btn btn-primary btn-full" style={{ height: '48px', fontSize: '1rem' }} onClick={handleConfirm}>Confirm & Authenticate <ArrowRight size={18} style={{marginLeft: '8px'}}/></button>
-          
           <div className="summary-actions-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', width: '100%' }}>
-            <button className="btn btn-outline" onClick={() => sendMessage('Edit amount')}>Edit Amount</button>
-            <button className="btn btn-outline" onClick={() => sendMessage('Change method')}>Method</button>
-            <button className="btn btn-outline" onClick={() => sendMessage('Change account')}>Account</button>
-            <button className="btn btn-outline" onClick={() => sendMessage('Change recipient')}>Recipient</button>
+            <button className="btn btn-outline" onClick={() => sendMessage('Change method')}>Change Method</button>
+            <button className="btn btn-outline" onClick={() => sendMessage('Change account')}>Change Account</button>
           </div>
-          
-          <button className="btn btn-secondary btn-full" style={{ border: 'none', color: 'var(--color-primary)' }} onClick={() => sendMessage('Cancel transfer')}>Cancel Transfer</button>
+          <button className="btn btn-secondary btn-full" style={{ border: 'none', color: 'var(--color-primary)', fontWeight: 500 }} onClick={() => sendMessage('Cancel transfer')}>Cancel Transfer</button>
+          <button className="btn btn-primary btn-full" style={{ height: '48px', fontSize: '1rem', marginTop: 'var(--spacing-xs)' }} onClick={handleConfirm}>Confirm & Authenticate <ArrowRight size={18} style={{marginLeft: '8px'}}/></button>
         </div>
       )}
 
@@ -134,9 +130,9 @@ export const MethodSelectionWidget = ({ data }: { data: any }) => {
   const { sendMessage, setContextData } = useChat();
   const methods = [
     { id: 'IMPS', icon: <Zap size={20} />, title: 'IMPS', desc: 'Instant bank transfer, available 24x7. Best for urgent payments.', arrival: 'Instant' },
-    { id: 'NEFT', icon: <Building2 size={20} />, title: 'NEFT', desc: 'Standard bank transfer. Good for regular payments.', arrival: '~ 30 Mins' },
-    { id: 'RTGS', icon: <Landmark size={20} />, title: 'RTGS', desc: 'For high-value transfers (min. ₹2 Lakhs).', arrival: 'Near Instant', min: 200000 },
-    { id: 'UPI', icon: <Link2 size={20} />, title: 'UPI', desc: 'Quick transfer using UPI network.', arrival: 'Instant' }
+    { id: 'NEFT', icon: <Building2 size={20} />, title: 'NEFT', desc: 'Standard bank transfer. Good for normal payments.', arrival: '~ 30 Mins' },
+    { id: 'RTGS', icon: <Landmark size={20} />, title: 'RTGS', desc: 'For higher-value transfers (min. ₹2 Lakhs).', arrival: 'Near Instant', min: 200000 },
+    { id: 'UPI', icon: <Link2 size={20} />, title: 'UPI', desc: 'Fast transfer using UPI network.', arrival: 'Instant' }
   ];
 
   const handleSelect = (method: any) => {
@@ -182,14 +178,14 @@ export const AccountSelectionWidget = ({ data }: { data: any }) => {
 
   return (
     <div className="banking-widget">
-      <div className="widget-header">Choose Account to Pay From</div>
+      <div className="widget-header">Choose Source Account</div>
       <div className="widget-content" style={{ padding: 0 }}>
         {mockAccounts.map(acc => (
           <div key={acc.id} className={`selection-card ${data.sourceAccount === acc.type ? 'active' : ''}`} onClick={() => handleSelect(acc)}>
             <div className="selection-card-icon"><CreditCard size={20} /></div>
             <div className="selection-card-info">
               <div style={{ fontWeight: 600 }}>{acc.type} •••• {acc.numberEnding}</div>
-              <div className="selection-card-desc">Available Balance: ₹{acc.balance.toLocaleString('en-IN')}</div>
+              <div className="selection-card-desc">Available balance: ₹{acc.balance.toLocaleString('en-IN')}</div>
             </div>
             {data.sourceAccount === acc.type && <CheckCircle2 size={18} color="var(--color-primary)" />}
           </div>
