@@ -1,11 +1,12 @@
 import type { BankAccount, BankCard, Beneficiary, Transaction, AutopayMandate } from '../types';
 
-export const mockAccount: BankAccount = {
-  id: 'acc_1',
-  type: 'Savings',
-  balance: 48230.50,
-  numberEnding: '1423'
-};
+export const mockAccounts: BankAccount[] = [
+  { id: 'acc_1', type: 'Savings', balance: 48230, numberEnding: '3122' },
+  { id: 'acc_2', type: 'Current', balance: 12500, numberEnding: '8821' },
+  { id: 'acc_3', type: 'Savings', balance: 124000, numberEnding: '1108' }
+];
+
+export const mockAccount = mockAccounts[0];
 
 export const mockBeneficiaries: Beneficiary[] = [
   { id: 'ben_1', name: 'Ravi Kumar', accountEnding: '9921', bank: 'HDFC Bank' },

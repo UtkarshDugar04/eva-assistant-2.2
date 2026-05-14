@@ -546,3 +546,56 @@ input {
   border: 2px solid #000;
   font-size: 1rem;
 }
+
+/* Selection Cards */
+.selection-card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.selection-card:hover {
+  background-color: var(--color-bg-main);
+}
+
+.selection-card.active {
+  background-color: var(--color-accent-light);
+  border-left: 4px solid var(--color-accent);
+}
+
+.selection-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.selection-card-info {
+  flex: 1;
+}
+
+.selection-card-desc {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+
+.recommendation-badge {
+  background-color: var(--color-success);
+  color: white;
+  font-size: 0.625rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+

@@ -1,6 +1,6 @@
 export type MessageSender = 'user' | 'bot';
 
-export type WidgetType = 'transfer_summary' | 'card_controls' | 'transaction_list' | 'kyc_status' | 'autopay_summary' | 'autopay_list' | 'auth_sheet' | 'success_status' | 'contact_selection' | 'support_ticket' | 'welcome_actions' | 'fallback_widget' | 'new_beneficiary_options';
+export type WidgetType = 'transfer_summary' | 'card_controls' | 'transaction_list' | 'kyc_status' | 'autopay_summary' | 'autopay_list' | 'auth_sheet' | 'success_status' | 'contact_selection' | 'support_ticket' | 'welcome_actions' | 'fallback_widget' | 'new_beneficiary_options' | 'method_selection' | 'account_selection';
 
 export interface Message {
   id: string;
