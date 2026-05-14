@@ -1,6 +1,6 @@
 import { mockBeneficiaries, mockAccounts } from '../data/mockData';
 
-export type Intent = 'transfer' | 'block_card' | 'kyc' | 'support' | 'autopay' | 'balance' | 'show_cards' | 'unknown' | 'cancel' | 'pay_bill' | 'faq';
+export type Intent = 'transfer' | 'block_card' | 'kyc' | 'support' | 'autopay' | 'balance' | 'show_cards' | 'unknown' | 'cancel' | 'pay_bill' | 'faq' | 'done' | 'share';
 
 export interface ParsedInput {
   intent: Intent;
@@ -73,6 +73,15 @@ export function parseUserInput(text: string): ParsedInput {
   if (/\b(cancel|stop|abort|nevermind|leave it)\b/i.test(lowerText)) {
     result.intent = 'cancel';
     return result;
+  }
+
+  if (lowerText === 'done') {
+      result.intent = 'done';
+      return result;
+  }
+  if (lowerText === 'share') {
+      result.intent = 'share';
+      return result;
   }
 
   if (/\b(charges|fee|cost)\b/i.test(lowerText)) result.entities.faq = 'charges';
@@ -172,6 +181,23 @@ export function generateBotResponse(
   let { intent, entities } = parsed;
   let updatedContext = { ...contextData };
 
+  const lowerRaw = rawText.toLowerCase().trim();
+
+  // POST-SUCCESS HANDLERS
+  if (intent === 'done') {
+      updatedContext.transfer = null;
+      updatedContext.intent = null;
+      updatedContext.transactionFinished = false;
+      return {
+          text: "Thank you. Your transfer is complete. Do you need help with anything else?",
+          widget: 'welcome_actions',
+          updatedContext
+      };
+  }
+  if (intent === 'share') {
+      return { text: "Opening share options for your receipt...", updatedContext };
+  }
+
   if (!updatedContext.transfer) {
      updatedContext.transfer = {
         recipient: null,
@@ -189,34 +215,34 @@ export function generateBotResponse(
      return { text: "Transfer cancelled. No money has been sent. How else can I help?", updatedContext };
   }
 
-  const lowerRaw = rawText.toLowerCase().trim();
-
-  // EXPLICIT ACTION HANDLERS
-  if (lowerRaw.includes('change method')) {
-      return {
-          text: "Choose your preferred payment method.",
-          widget: 'method_selection',
-          widgetData: updatedContext.transfer,
-          updatedContext
-      };
-  }
-  if (lowerRaw.includes('change account')) {
-      return {
-          text: "Choose the account you want to pay from.",
-          widget: 'account_selection',
-          widgetData: updatedContext.transfer,
-          updatedContext
-      };
-  }
-  if (lowerRaw.includes('change recipient')) {
-      updatedContext.transfer.recipient = null;
-      updatedContext.transfer.stage = 'start';
-      return { text: "Who would you like to send money to?", updatedContext };
+  // EXPLICIT ACTION HANDLERS (Blocked if transaction finished)
+  if (!updatedContext.transactionFinished) {
+      if (lowerRaw.includes('change method')) {
+          return {
+              text: "Choose your preferred payment method.",
+              widget: 'method_selection',
+              widgetData: updatedContext.transfer,
+              updatedContext
+          };
+      }
+      if (lowerRaw.includes('change account')) {
+          return {
+              text: "Choose the account you want to pay from.",
+              widget: 'account_selection',
+              widgetData: updatedContext.transfer,
+              updatedContext
+          };
+      }
+      if (lowerRaw.includes('change recipient')) {
+          updatedContext.transfer.recipient = null;
+          updatedContext.transfer.stage = 'start';
+          return { text: "Who would you like to send money to?", updatedContext };
+      }
   }
 
   const isTransferring = updatedContext.intent === 'transfer' || intent === 'transfer' || (intent === 'unknown' && updatedContext.intent === 'transfer');
 
-  if (isTransferring) {
+  if (isTransferring && !updatedContext.transactionFinished) {
       const originalIntent = intent;
       intent = 'transfer';
       updatedContext.intent = 'transfer';

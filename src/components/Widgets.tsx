@@ -15,14 +15,11 @@ export const TransferWidget = ({ data }: { data: any }) => {
   const handlePinAuth = () => {
     if (pin.length === 4) {
       setStatus('success');
-      setTimeout(() => {
-        setContextData((prev: any) => ({
-          ...prev,
-          transfer: null, 
-          intent: null,
-          entities: {}
-        }));
-      }, 1500);
+      // Set finished state to block edit handlers in NLP
+      setContextData((prev: any) => ({
+        ...prev,
+        transactionFinished: true
+      }));
     }
   };
 
@@ -42,7 +39,7 @@ export const TransferWidget = ({ data }: { data: any }) => {
               </div>
            </div>
            <div className="widget-footer" style={{ gap: '8px' }}>
-              <button className="btn btn-outline" style={{ flex: 1 }}><Share2 size={16}/> Share</button>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => sendMessage('Share')}><Share2 size={16}/> Share</button>
               <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => sendMessage('Done')}>Done</button>
            </div>
         </div>
@@ -171,7 +168,7 @@ export const AccountSelectionWidget = ({ data }: { data: any }) => {
       ...prev,
       transfer: { ...prev.transfer, sourceAccount: account.type }
     }));
-    sendMessage(`Use ${account.type} account`);
+    sendMessage(`Source account changed to ${account.type} •••• ${account.numberEnding}`);
   };
 
   return (
@@ -184,7 +181,7 @@ export const AccountSelectionWidget = ({ data }: { data: any }) => {
             <div className="selection-card-info">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontWeight: 600 }}>{acc.type} •••• {acc.numberEnding}</span>
-                {data.sourceAccount === acc.type && <span className="recommendation-badge" style={{ backgroundColor: 'var(--color-primary)' }}>Selected</span>}
+                {data.sourceAccount === acc.type && <span className="recommendation-badge" style={{ backgroundColor: 'var(--color-primary)' }}>✅ Currently Selected</span>}
               </div>
               <div className="selection-card-desc">Available Balance: ₹{acc.balance.toLocaleString('en-IN')}</div>
             </div>

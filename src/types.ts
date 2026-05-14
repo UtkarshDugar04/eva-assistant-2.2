@@ -21,7 +21,7 @@ export interface Beneficiary {
 
 export interface BankAccount {
   id: string;
-  type: 'Savings' | 'Current';
+  type: 'Savings' | 'Current' | 'Salary';
   balance: number;
   numberEnding: string;
 }
