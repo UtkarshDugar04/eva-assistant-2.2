@@ -8,14 +8,14 @@ export const Header = () => {
   return (
     <header className="app-header">
       <div className="header-title">
-        <img src="https://upload.wikimedia.org/wikipedia/commons/2/28/HDFC_Bank_Logo.svg" alt="HDFC Bank" height="18" />
-        <span className="ai-badge">Eva AI</span>
+        <img src="https://upload.wikimedia.org/wikipedia/commons/2/28/HDFC_Bank_Logo.svg" alt="HDFC Bank" height="24" />
+        <span className="ai-badge">Eva Assistant</span>
       </div>
       <div style={{ display: 'flex', gap: '8px' }}>
-        <button className="icon-btn" onClick={toggleAccessibilityMode} aria-label="Toggle Accessibility" style={{ color: isAccessibilityMode ? 'var(--color-primary)' : 'var(--color-accent)' }}>
+        <button className="icon-btn" onClick={toggleAccessibilityMode} aria-label="Toggle Accessibility Mode" style={{ color: isAccessibilityMode ? 'var(--color-primary)' : 'var(--color-text-main)' }}>
           <Accessibility size={24} />
         </button>
-        <button className="icon-btn" aria-label="More">
+        <button className="icon-btn" aria-label="More options">
           <MoreVertical size={24} color="var(--color-text-main)" />
         </button>
       </div>
@@ -54,7 +54,7 @@ export const MessageList = () => {
           </div>
         </div>
       )}
-      <div ref={bottomRef} style={{ height: '1px' }} />
+      <div ref={bottomRef} />
     </div>
   );
 };
@@ -74,6 +74,7 @@ export const InputArea = () => {
   const handleSend = () => {
     const trimmed = text.trim();
     if (trimmed) {
+      // Duplicate Submission Guard
       const now = Date.now();
       if (trimmed === lastSubmissionRef.current.text && (now - lastSubmissionRef.current.time) < 2500) {
         return; 
@@ -83,10 +84,7 @@ export const InputArea = () => {
       sendMessage(trimmed);
       setText('');
       textRef.current = '';
-      if (recognitionRef.current) {
-          recognitionRef.current.onend = null; // Prevent onend firing after manual send
-          recognitionRef.current.stop();
-      }
+      if (recognitionRef.current) recognitionRef.current.stop();
       inputRef.current?.focus();
     }
   };
@@ -99,7 +97,7 @@ export const InputArea = () => {
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      addBotMessage("Voice input is not supported in this browser.");
+      addBotMessage("Voice input is limited on this browser. You can still use your keyboard or device dictation.");
       return;
     }
 
@@ -117,7 +115,7 @@ export const InputArea = () => {
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = setTimeout(() => {
         if (recognitionRef.current) recognitionRef.current.stop();
-      }, 5000);
+      }, 5000); // 5s silence before auto-stop
     };
 
     recognition.onstart = () => {
@@ -147,76 +145,85 @@ export const InputArea = () => {
       resetSilenceTimer();
     };
     
+    recognition.onerror = (event: any) => {
+      setIsListening(false);
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      console.error('Speech error:', event.error);
+    };
+
     recognition.onend = () => {
       setIsListening(false);
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       
-      // Use textRef exclusively for automatic submission to avoid stale closures
-      const finalVal = textRef.current.trim();
+      const finalVal = textRef.current.trim() || text.trim();
       if (finalVal) {
         setIsProcessing(true);
         setTimeout(() => {
-            sendMessage(finalVal);
-            setText('');
-            textRef.current = '';
+            handleSend();
             setIsProcessing(false);
-        }, 400);
+        }, 300);
       } else {
+        // Only show error if absolutely nothing was captured
         setTimeout(() => {
-            // Check text state as well for manual typing + voice hybrid cases
             if (!textRef.current && !text) {
                 addBotMessage("I couldn't hear anything. Please try again.");
             }
-        }, 200);
+        }, 100);
       }
     };
     
     try {
       recognition.start();
     } catch (e) {
-      addBotMessage("Please allow microphone permissions.");
+      console.error(e);
+      addBotMessage("Please allow microphone permissions to use voice banking.");
     }
   };
 
   return (
-    <div className="input-area">
-      <button className="icon-btn" aria-label="Add attachment">
-        <Plus size={24} />
-      </button>
-      <div className="input-container">
-        <input
-          ref={inputRef}
-          type="text"
-          className="chat-input"
-          placeholder={isListening ? "Listening..." : "Type or speak..."}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-          disabled={isProcessing}
-        />
-        <button 
-          className={`icon-btn ${isListening ? 'listening' : ''}`} 
-          onClick={handleVoiceToggle}
-          disabled={isProcessing}
-        >
-          {isListening ? (
-             <div style={{ display: 'flex', gap: '2px', height: '14px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      <div className="input-area">
+        <button className="icon-btn" aria-label="Add attachment">
+          <Plus size={24} />
+        </button>
+        <div className="input-container" style={{ position: 'relative' }}>
+          <input
+            ref={inputRef}
+            type="text"
+            className="chat-input"
+            placeholder={isListening ? "Listening..." : (isProcessing ? "Processing..." : "Type or speak naturally...")}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+            disabled={isProcessing}
+          />
+          <button 
+            className={`icon-btn ${isListening ? 'listening' : ''}`} 
+            aria-label="Voice input" 
+            style={{ marginRight: '-8px' }} 
+            onClick={handleVoiceToggle}
+            disabled={isProcessing}
+          >
+            {isListening ? (
+              <div style={{ display: 'flex', gap: '2px', alignItems: 'center', height: '16px' }}>
                 <div className="voice-bar" style={{ animationDelay: '0s' }}></div>
                 <div className="voice-bar" style={{ animationDelay: '0.2s' }}></div>
                 <div className="voice-bar" style={{ animationDelay: '0.4s' }}></div>
-             </div>
-          ) : (
-            <Mic size={22} />
-          )}
+              </div>
+            ) : (
+              <Mic size={20} color={isProcessing ? "var(--color-primary)" : "var(--color-text-muted)"} />
+            )}
+          </button>
+        </div>
+        <button 
+          className={`icon-btn ${text.trim() ? 'primary' : ''}`} 
+          onClick={handleSend}
+          disabled={!text.trim() || isProcessing}
+          aria-label="Send message"
+        >
+          <Send size={20} />
         </button>
       </div>
-      <button 
-        className="icon-btn primary" 
-        onClick={handleSend}
-        disabled={!text.trim() || isProcessing}
-      >
-        <Send size={20} />
-      </button>
     </div>
   );
 };
