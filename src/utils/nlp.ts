@@ -144,9 +144,16 @@ export function parseUserInput(text: string): ParsedInput {
      }
   }
 
-  if (/\b(salary)\b/.test(lowerText)) result.entities.sourceAccount = 'Salary';
-  if (/\b(savings)\b/.test(lowerText)) result.entities.sourceAccount = 'Savings';
-  if (/\b(current)\b/.test(lowerText)) result.entities.sourceAccount = 'Current';
+  // Matching specific accounts by ending or type
+  if (/\b(salary)\b/.test(lowerText)) result.entities.sourceAccountId = mockAccounts.find(a => a.type === 'Salary')?.id;
+  if (/\b(savings)\b/.test(lowerText) && !lowerText.includes('current')) result.entities.sourceAccountId = mockAccounts.find(a => a.type === 'Savings')?.id;
+  if (/\b(current)\b/.test(lowerText)) result.entities.sourceAccountId = mockAccounts.find(a => a.type === 'Current')?.id;
+
+  const endingMatch = lowerText.match(/\b(?:ending|with|in)\s*(\d{4})\b/i);
+  if (endingMatch) {
+      const match = mockAccounts.find(a => a.numberEnding === endingMatch[1]);
+      if (match) result.entities.sourceAccountId = match.id;
+  }
 
   if (/\b(balance|money|funds)\b/.test(lowerText) && !/\b(transfer|send|pay)\b/.test(lowerText)) {
     result.intent = 'balance';
@@ -203,7 +210,7 @@ export function generateBotResponse(
         recipient: null,
         amount: null,
         method: 'IMPS',
-        sourceAccount: 'Savings',
+        sourceAccountId: mockAccounts[0].id, // Default to first account
         stage: 'start',
         entities: {}
      };
@@ -251,7 +258,7 @@ export function generateBotResponse(
 
       if (entities.amount) t.amount = entities.amount;
       if (entities.method) t.method = entities.method;
-      if (entities.sourceAccount) t.sourceAccount = entities.sourceAccount;
+      if (entities.sourceAccountId) t.sourceAccountId = entities.sourceAccountId;
       if (entities.beneficiary) {
           t.recipient = entities.beneficiary;
           t.stage = 'confirm_recipient';
@@ -315,12 +322,13 @@ export function generateBotResponse(
          return { text: `How much would you like to send to ${t.recipient.name}?`, updatedContext };
       }
 
-      const currentBalance = mockAccounts.find(a => a.type === t.sourceAccount)?.balance || 0;
+      const sourceAcc = mockAccounts.find(a => a.id === t.sourceAccountId) || mockAccounts[0];
+      const currentBalance = sourceAcc.balance;
       if (t.amount > currentBalance) {
          const oldAmount = t.amount;
          t.amount = null;
          return {
-           text: `Your available balance in ${t.sourceAccount} is ₹${currentBalance.toLocaleString('en-IN')}. Please choose a lower amount than ₹${oldAmount.toLocaleString('en-IN')} or use another account.`,
+           text: `Your available balance in ${sourceAcc.type} is ₹${currentBalance.toLocaleString('en-IN')}. Please choose a lower amount than ₹${oldAmount.toLocaleString('en-IN')} or use another account.`,
            updatedContext
          };
       }
@@ -332,7 +340,8 @@ export function generateBotResponse(
             amount: t.amount,
             beneficiary: t.recipient,
             method: t.method,
-            sourceAccount: t.sourceAccount,
+            sourceAccount: sourceAcc.type,
+            sourceAccountId: t.sourceAccountId,
             arrival: t.method === 'NEFT' ? '~ 30 Mins' : 'Instant'
          },
          updatedContext

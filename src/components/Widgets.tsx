@@ -15,7 +15,6 @@ export const TransferWidget = ({ data }: { data: any }) => {
   const handlePinAuth = () => {
     if (pin.length === 4) {
       setStatus('success');
-      // Set finished state to block edit handlers in NLP
       setContextData((prev: any) => ({
         ...prev,
         transactionFinished: true
@@ -46,6 +45,8 @@ export const TransferWidget = ({ data }: { data: any }) => {
      );
   }
 
+  const selectedAcc = mockAccounts.find(a => a.id === data.sourceAccountId) || mockAccounts[0];
+
   return (
     <div className="banking-widget">
       <div className="widget-header">
@@ -63,7 +64,7 @@ export const TransferWidget = ({ data }: { data: any }) => {
         </div>
         <div className="data-row">
           <span className="data-label">From Account</span>
-          <span className="data-value">{data.sourceAccount || 'Savings'} •••• {mockAccounts.find(a => a.type === (data.sourceAccount || 'Savings'))?.numberEnding || '3122'}</span>
+          <span className="data-value">{selectedAcc.type} •••• {selectedAcc.numberEnding}</span>
         </div>
         <div className="data-row">
           <span className="data-label">Arrival</span>
@@ -166,9 +167,9 @@ export const AccountSelectionWidget = ({ data }: { data: any }) => {
   const handleSelect = (account: any) => {
     setContextData((prev: any) => ({
       ...prev,
-      transfer: { ...prev.transfer, sourceAccount: account.type }
+      transfer: { ...prev.transfer, sourceAccountId: account.id }
     }));
-    sendMessage(`Source account changed to ${account.type} •••• ${account.numberEnding}`);
+    sendMessage(`Use account ending in ${account.numberEnding}`);
   };
 
   return (
@@ -176,16 +177,16 @@ export const AccountSelectionWidget = ({ data }: { data: any }) => {
       <div className="widget-header">Choose Account to Pay From</div>
       <div className="widget-content" style={{ padding: 0 }}>
         {mockAccounts.map(acc => (
-          <div key={acc.id} className={`selection-card ${data.sourceAccount === acc.type ? 'active' : ''}`} onClick={() => handleSelect(acc)}>
+          <div key={acc.id} className={`selection-card ${data.sourceAccountId === acc.id ? 'active' : ''}`} onClick={() => handleSelect(acc)}>
             <div className="selection-card-icon"><CreditCard size={20} /></div>
             <div className="selection-card-info">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontWeight: 600 }}>{acc.type} •••• {acc.numberEnding}</span>
-                {data.sourceAccount === acc.type && <span className="recommendation-badge" style={{ backgroundColor: 'var(--color-primary)' }}>✅ Currently Selected</span>}
+                {data.sourceAccountId === acc.id && <span className="recommendation-badge" style={{ backgroundColor: 'var(--color-primary)' }}>✅ Currently Selected</span>}
               </div>
               <div className="selection-card-desc">Available Balance: ₹{acc.balance.toLocaleString('en-IN')}</div>
             </div>
-            {data.sourceAccount === acc.type && <CheckCircle2 size={18} color="var(--color-primary)" />}
+            {data.sourceAccountId === acc.id && <CheckCircle2 size={18} color="var(--color-primary)" />}
           </div>
         ))}
       </div>
