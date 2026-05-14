@@ -125,18 +125,28 @@ export const TransferWidget = ({ data }: { data: any }) => {
 };
 
 export const MethodSelectionWidget = ({ data }: { data: any }) => {
-  const { sendMessage, setContextData } = useChat();
+  const { sendAction, contextData } = useChat();
   const methods = [
     { id: 'IMPS', icon: <Zap size={20} />, title: 'IMPS', desc: 'Instant bank transfer, available 24x7. Best for urgent payments.', arrival: 'Instant' },
     { id: 'NEFT', icon: <Building2 size={20} />, title: 'NEFT', desc: 'Standard bank transfer. Good for regular payments.', arrival: '~ 30 Mins' }
   ];
 
   const handleSelect = (method: any) => {
-    setContextData((prev: any) => ({
-      ...prev,
-      transfer: { ...prev.transfer, method: method.id }
-    }));
-    sendMessage(`Use ${method.id}`);
+    const updatedContext = {
+      ...contextData,
+      transfer: { ...contextData.transfer, method: method.id }
+    };
+    const widgetData = {
+      ...updatedContext.transfer,
+      beneficiary: updatedContext.transfer.recipient,
+      arrival: method.arrival
+    };
+    sendAction(
+      `Payment method changed to ${method.id}.`,
+      updatedContext,
+      'transfer_summary',
+      widgetData
+    );
   };
 
   return (
@@ -162,14 +172,24 @@ export const MethodSelectionWidget = ({ data }: { data: any }) => {
 };
 
 export const AccountSelectionWidget = ({ data }: { data: any }) => {
-  const { sendMessage, setContextData } = useChat();
+  const { sendAction, contextData } = useChat();
   
   const handleSelect = (account: any) => {
-    setContextData((prev: any) => ({
-      ...prev,
-      transfer: { ...prev.transfer, sourceAccountId: account.id }
-    }));
-    sendMessage(`Use account ending in ${account.numberEnding}`);
+    const updatedContext = {
+      ...contextData,
+      transfer: { ...contextData.transfer, sourceAccountId: account.id }
+    };
+    const widgetData = {
+      ...updatedContext.transfer,
+      beneficiary: updatedContext.transfer.recipient,
+      arrival: updatedContext.transfer.method === 'NEFT' ? '~ 30 Mins' : 'Instant'
+    };
+    sendAction(
+      `Source account changed to ${account.type} •••• ${account.numberEnding}.`,
+      updatedContext,
+      'transfer_summary',
+      widgetData
+    );
   };
 
   return (

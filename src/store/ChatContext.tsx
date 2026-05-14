@@ -8,6 +8,7 @@ interface ChatContextType {
   messages: Message[];
   isTyping: boolean;
   sendMessage: (text: string) => void;
+  sendAction: (botText: string, updatedContext: any, widget?: WidgetType, widgetData?: any) => void;
   addBotMessage: (text: string, widget?: WidgetType, widgetData?: any) => void;
   isAccessibilityMode: boolean;
   toggleAccessibilityMode: () => void;
@@ -25,8 +26,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     balance: mockAccount.balance,
     cards: [...mockCards],
     autopays: [...mockAutopays],
-    transactions: [...mockTransactions]
-  }); // For storing flow state (e.g. pending transfer) and banking state
+    transactions: [...mockTransactions],
+    transactionFinished: false
+  });
 
   const addBotMessage = (text: string, widget?: WidgetType, widgetData?: any) => {
     setIsTyping(true);
@@ -40,13 +42,12 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         widgetData
       }]);
       setIsTyping(false);
-    }, 1000 + Math.random() * 500); // Simulate network/typing
+    }, 800 + Math.random() * 400); 
   };
 
   const sendMessage = (text: string) => {
     if (!text.trim()) return;
 
-    // Add user message
     const userMsg: Message = {
       id: Date.now().toString(),
       text,
@@ -55,19 +56,20 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     };
     setMessages(prev => [...prev, userMsg]);
 
-    // Parse and generate response
     const parsed = parseUserInput(text);
-    
-    // Check if we are in a pending context
     const response = generateBotResponse(parsed, contextData, text);
     
     setContextData(response.updatedContext);
     addBotMessage(response.text, response.widget, response.widgetData);
   };
 
+  const sendAction = (botText: string, updatedContext: any, widget?: WidgetType, widgetData?: any) => {
+    setContextData(updatedContext);
+    addBotMessage(botText, widget, widgetData);
+  };
+
   const toggleAccessibilityMode = () => {
     setIsAccessibilityMode(prev => !prev);
-    // Apply class to body for global CSS variables
     if (!isAccessibilityMode) {
       document.body.classList.add('accessibility-mode');
     } else {
@@ -76,14 +78,6 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    // Speak welcome message if in accessibility mode initially
-    if (isAccessibilityMode && 'speechSynthesis' in window) {
-       // Just a simulated effect for the prototype
-    }
-  }, [isAccessibilityMode]);
-
-  useEffect(() => {
-    // Initial entrance animation
     if (messages.length === 0) {
       setIsTyping(true);
       setTimeout(() => {
@@ -109,6 +103,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
       messages,
       isTyping,
       sendMessage,
+      sendAction,
       addBotMessage,
       isAccessibilityMode,
       toggleAccessibilityMode,
