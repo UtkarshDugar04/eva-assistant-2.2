@@ -3,7 +3,7 @@ import { useChat } from '../store/ChatContext';
 import { CheckCircle2, ShieldAlert, CreditCard, ChevronRight, Fingerprint, Lock } from 'lucide-react';
 
 export const TransferWidget = ({ data }: { data: any }) => {
-  const { addBotMessage, setContextData } = useChat();
+  const { addBotMessage, setContextData, isAccessibilityMode } = useChat();
   const [status, setStatus] = useState<'pending' | 'authenticating' | 'success'>('pending');
   const [pin, setPin] = useState('');
 
@@ -26,14 +26,17 @@ export const TransferWidget = ({ data }: { data: any }) => {
             status: 'Success',
             type: 'Debit'
           }, ...prev.transactions],
-          stack: []
+          stack: [],
+          intent: null,
+          entities: {}
         }));
-        addBotMessage(`Transfer of ₹${data.amount} to ${data.beneficiary.name} was successful. Reference ID: HDFC${Math.floor(Math.random() * 100000000)}`, 'success_status', { type: 'success', title: 'Transfer Successful', message: `₹${data.amount} sent to ${data.beneficiary.name}` });
+        const refId = `HDFC${Math.floor(Math.random() * 100000000)}`;
+        addBotMessage(`₹${data.amount.toLocaleString('en-IN')} sent successfully to ${data.beneficiary.name}.\n\nReference ID: ${refId}\nMethod: ${data.method || 'IMPS'}\nAccount Debited: ${data.sourceAccount || 'Savings'}`, 'success_status', { type: 'success', title: 'Transfer Successful', message: `₹${data.amount.toLocaleString('en-IN')} sent to ${data.beneficiary.name}` });
       }, 1000);
     }
   };
 
-  if (status === 'success') return null; // Will show success message in chat
+  if (status === 'success') return null;
 
   return (
     <div className="banking-widget">
@@ -42,17 +45,25 @@ export const TransferWidget = ({ data }: { data: any }) => {
         <img src="https://upload.wikimedia.org/wikipedia/commons/2/28/HDFC_Bank_Logo.svg" alt="HDFC" height="16" />
       </div>
       <div className="widget-content">
-        <div style={{ marginBottom: 'var(--spacing-md)' }}>
-           <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{data.beneficiary?.name}</div>
-           <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>📱 {data.beneficiary?.phone || 'N/A'}</div>
+        <div style={{ marginBottom: 'var(--spacing-md)', textAlign: 'center' }}>
+           <div style={{ fontWeight: 600, fontSize: '1.25rem' }}>{data.beneficiary?.name}</div>
+           <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>{data.beneficiary?.bank || 'Bank'} •••• {data.beneficiary?.accountEnding || 'XXXX'}</div>
         </div>
         <div className="data-row">
           <span className="data-label">Via</span>
-          <span className="data-value">UPI</span>
+          <span className="data-value">{data.method || 'IMPS'}</span>
         </div>
         <div className="data-row">
           <span className="data-label">From Account</span>
-          <span className="data-value">Savings ending 1423</span>
+          <span className="data-value">{data.sourceAccount || 'Savings'} •••• 3122</span>
+        </div>
+        <div className="data-row">
+          <span className="data-label">Charges</span>
+          <span className="data-value">₹0</span>
+        </div>
+        <div className="data-row">
+          <span className="data-label">Arrival</span>
+          <span className="data-value">{data.arrival || 'Instant'}</span>
         </div>
         <div className="data-row" style={{ marginTop: 'var(--spacing-sm)', paddingTop: 'var(--spacing-sm)', borderTop: '1px solid var(--color-border)' }}>
           <span className="data-label">Amount</span>
@@ -61,9 +72,14 @@ export const TransferWidget = ({ data }: { data: any }) => {
       </div>
       
       {status === 'pending' && (
-        <div className="widget-footer">
-          <button className="btn btn-outline" onClick={() => addBotMessage('Transfer cancelled.')}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleConfirm}>Confirm & Pay</button>
+        <div className="widget-footer" style={{ flexDirection: 'column', gap: '8px' }}>
+          <button className="btn btn-primary btn-full" onClick={handleConfirm}>Confirm & Continue</button>
+          <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+            <button className="btn btn-outline" style={{ flex: 1, padding: '8px 4px', fontSize: '0.875rem' }} onClick={() => addBotMessage('I want to edit the amount.')}>Edit Amount</button>
+            <button className="btn btn-outline" style={{ flex: 1, padding: '8px 4px', fontSize: '0.875rem' }} onClick={() => addBotMessage('Change method to NEFT.')}>Method</button>
+            <button className="btn btn-outline" style={{ flex: 1, padding: '8px 4px', fontSize: '0.875rem' }} onClick={() => addBotMessage('Use another account.')}>Account</button>
+          </div>
+          <button className="btn btn-secondary btn-full" onClick={() => addBotMessage('Cancel this transfer.')}>Cancel Transfer</button>
         </div>
       )}
 
@@ -72,8 +88,8 @@ export const TransferWidget = ({ data }: { data: any }) => {
           <div className="auth-sheet">
             <div style={{ textAlign: 'center' }}>
               <Lock size={32} color="var(--color-primary)" />
-              <h3 style={{ marginTop: 'var(--spacing-sm)' }}>Enter UPI PIN</h3>
-              <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>For payment of ₹{data.amount} to {data.beneficiary?.name}</p>
+              <h3 style={{ marginTop: 'var(--spacing-sm)' }}>Secure Authentication</h3>
+              <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>Enter MPIN to send ₹{data.amount?.toLocaleString('en-IN')} to {data.beneficiary?.name}</p>
             </div>
             
             <div className="pin-dots">
@@ -87,11 +103,18 @@ export const TransferWidget = ({ data }: { data: any }) => {
                 <button
                   key={key}
                   className="keypad-btn"
+                  style={isAccessibilityMode ? { height: '80px', fontSize: '2rem' } : {}}
                   onClick={() => {
                     if (key === 'C') setPin('');
                     else if (key === 'OK') handlePinAuth();
-                    else if (pin.length < 4) setPin(pin + key);
+                    else if (pin.length < 4) {
+                       setPin(pin + key);
+                       if (isAccessibilityMode && navigator.vibrate) {
+                         navigator.vibrate(50);
+                       }
+                    }
                   }}
+                  aria-label={key === 'C' ? 'Clear' : key === 'OK' ? 'Confirm' : `Digit ${key}`}
                 >
                   {key}
                 </button>

@@ -1,6 +1,6 @@
 import { mockBeneficiaries, mockCards, mockAccount, mockAutopays } from '../data/mockData';
 
-export type Intent = 'transfer' | 'block_card' | 'kyc' | 'support' | 'autopay' | 'balance' | 'show_cards' | 'unknown' | 'cancel' | 'pay_bill';
+export type Intent = 'transfer' | 'block_card' | 'kyc' | 'support' | 'autopay' | 'balance' | 'show_cards' | 'unknown' | 'cancel' | 'pay_bill' | 'faq';
 
 export interface ParsedInput {
   intent: Intent;
@@ -23,6 +23,7 @@ const typoMap: Record<string, string> = {
   'karna hai': 'do',
   'ko': 'to',
   'paanch': '5',
+  'sau': '100',
   'hazaar': 'thousand',
   'lac': 'lakh'
 };
@@ -30,12 +31,10 @@ const typoMap: Record<string, string> = {
 function normalizeText(text: string): string {
   let normalized = text.toLowerCase().trim();
   
-  // Apply typo corrections
   Object.keys(typoMap).forEach(typo => {
     normalized = normalized.replace(new RegExp(`\\b${typo}\\b`, 'g'), typoMap[typo]);
   });
   
-  // Replace text numbers
   normalized = normalized.replace(/\b(?:one|1)\s*thousand\b/g, '1000');
   normalized = normalized.replace(/\b(?:two|2)\s*thousand\b/g, '2000');
   normalized = normalized.replace(/\b(?:five|5)\s*thousand\b/g, '5000');
@@ -46,7 +45,6 @@ function normalizeText(text: string): string {
   return normalized;
 }
 
-// Basic Levenshtein distance for fuzzy matching
 function levenshtein(a: string, b: string): number {
   if (a.length === 0) return b.length;
   if (b.length === 0) return a.length;
@@ -69,42 +67,52 @@ export function parseUserInput(text: string): ParsedInput {
   const lowerText = normalizeText(text);
   const result: ParsedInput = { intent: 'unknown', entities: {} };
 
-  // 1. Correction Signals
+  // Corrections
   if (/\b(actually|no|instead|wait|sorry|correction)\b/i.test(lowerText)) {
     result.isCorrection = true;
   }
 
-  // 2. Cancellation
-  if (/\b(cancel|stop|abort|nevermind)\b/i.test(lowerText)) {
+  // Cancel
+  if (/\b(cancel|stop|abort|nevermind|leave it)\b/i.test(lowerText)) {
     result.intent = 'cancel';
     return result;
   }
 
-  // 3. Amount Extraction (handles ₹1000, 1000, 5000 rs, etc.)
+  // FAQs
+  if (/\b(charges|fee|how much does it cost)\b/i.test(lowerText)) result.entities.faq = 'charges';
+  if (/\b(how long|eta|when will it reach|time)\b/i.test(lowerText)) result.entities.faq = 'eta';
+
+  // Amount
   const amountMatch = lowerText.match(/(?:₹|rs\.?|rupees?)?\s*(\d+(?:,\d+)*(?:\.\d+)?)\s*(?:rs|rupees)?/i);
   if (amountMatch) {
       result.entities.amount = parseInt(amountMatch[1].replace(/,/g, ''), 10);
   }
 
-  // 4. Urgency & Method Extraction
-  if (/\b(urgent|urgently|now|immediately|fast)\b/.test(lowerText)) result.entities.urgency = 'urgent';
-  if (/\b(imps)\b/.test(lowerText)) result.entities.method = 'IMPS';
-  if (/\b(neft)\b/.test(lowerText)) result.entities.method = 'NEFT';
-  if (/\b(upi)\b/.test(lowerText)) result.entities.method = 'UPI';
-  
-  if (result.entities.urgency === 'urgent' && !result.entities.method) {
-      result.entities.method = 'IMPS'; // Default urgent to IMPS
-  }
+  // Identifiers: Mobile, Account, UPI
+  const mobileMatch = lowerText.match(/\b([6-9]\d{9})\b/);
+  if (mobileMatch) result.entities.mobile = mobileMatch[1];
 
-  // 5. Beneficiary Extraction
+  const upiMatch = lowerText.match(/\b([\w.-]+@[\w.-]+)\b/);
+  if (upiMatch) result.entities.upi = upiMatch[1];
+
+  const acctMatch = lowerText.match(/\b(?:account|acct)?\s*(\d{9,18})\b/i);
+  if (acctMatch && !mobileMatch) result.entities.account = acctMatch[1];
+
+  // Method & Urgency
+  if (/\b(urgent|urgently|now|immediately|fast|fastest)\b/.test(lowerText)) result.entities.urgency = 'urgent';
+  if (/\b(tomorrow|later)\b/.test(lowerText)) result.entities.timing = 'scheduled';
+  if (/\b(imps)\b/.test(lowerText)) result.entities.method = 'IMPS';
+  if (/\b(neft|cheapest)\b/.test(lowerText)) result.entities.method = 'NEFT';
+  if (/\b(upi)\b/.test(lowerText)) result.entities.method = 'UPI';
+
+  // Beneficiary Matching
   const words = lowerText.split(/[\s,]+/);
   let bestMatch = null;
   let bestDistance = Infinity;
 
-  // Exact or fuzzy match on known beneficiaries
   const benMatches = mockBeneficiaries.filter(b => {
     const nameParts = b.name.toLowerCase().split(' ');
-    const cleanWords = words.filter(w => !['send', 'transfer', 'pay', 'to', 'ko', 'rupees', 'rs', 'imps', 'neft', 'upi', 'bhejna', 'hai'].includes(w) && isNaN(Number(w)));
+    const cleanWords = words.filter(w => !['send', 'transfer', 'pay', 'to', 'ko', 'rupees', 'rs', 'imps', 'neft', 'upi', 'bhejna', 'hai', 'account', 'salary', 'savings'].includes(w) && isNaN(Number(w)) && !w.includes('@'));
     
     let isMatch = false;
     for (const part of nameParts) {
@@ -134,14 +142,18 @@ export function parseUserInput(text: string): ParsedInput {
       result.entities.multipleBeneficiaries = benMatches;
     }
   } else {
-     // Check for new beneficiary
      const toMatch = lowerText.match(/(?:to|ko|pay)\s+([a-z]+)/i);
-     if (toMatch && !['my', 'the', 'bill', 'credit'].includes(toMatch[1])) {
+     if (toMatch && !['my', 'the', 'bill', 'credit', 'rent'].includes(toMatch[1])) {
          result.entities.newBeneficiaryName = toMatch[1].charAt(0).toUpperCase() + toMatch[1].slice(1);
      }
   }
 
-  // 6. Intent Classification
+  // Account Source
+  if (/\b(salary)\b/.test(lowerText)) result.entities.sourceAccount = 'Salary';
+  if (/\b(savings)\b/.test(lowerText)) result.entities.sourceAccount = 'Savings';
+  if (/\b(current)\b/.test(lowerText)) result.entities.sourceAccount = 'Current';
+
+  // Intents
   if (/\b(balance|how much money|kitna paisa)\b/.test(lowerText)) {
     result.intent = 'balance';
     return result;
@@ -184,8 +196,7 @@ export function parseUserInput(text: string): ParsedInput {
     return result;
   }
 
-  // Fallback
-  if (result.entities.amount || result.entities.beneficiaryName || result.entities.newBeneficiaryName) {
+  if (Object.keys(result.entities).length > 0) {
       result.intent = 'unknown'; 
   }
 
@@ -201,10 +212,15 @@ export function generateBotResponse(
   let { intent, entities, isCorrection } = parsed;
   let updatedContext = { ...contextData };
 
+  // Safe Cancel
   if (intent === 'cancel') {
-     return { text: "No problem, I've cancelled that request. What else can I help you with?", updatedContext: { ...updatedContext, intent: null, entities: {} } };
+     if (updatedContext.intent === 'transfer') {
+        return { text: "This transfer has been cancelled. No money has been sent. How else can I help?", updatedContext: { ...updatedContext, intent: null, entities: {}, stack: [] } };
+     }
+     return { text: "Cancelled. What else can I help you with?", updatedContext: { ...updatedContext, intent: null, entities: {}, stack: [] } };
   }
 
+  // Context Management
   if (isCorrection && updatedContext.intent) {
       entities = { ...updatedContext.entities, ...entities };
       intent = updatedContext.intent;
@@ -216,21 +232,30 @@ export function generateBotResponse(
     updatedContext.entities = { ...entities };
   } else if (intent === 'unknown' && updatedContext.intent) {
     intent = updatedContext.intent;
+    
     if (updatedContext.entities.multipleBeneficiaries) {
       const lowerRaw = rawText.toLowerCase().trim();
       const exactContextMatch = updatedContext.entities.multipleBeneficiaries.find((b: any) => 
          b.name.toLowerCase() === lowerRaw || lowerRaw.includes(b.name.toLowerCase()) || 
-         (lowerRaw === 'first one' || lowerRaw === 'option 1' || lowerRaw === '1') && updatedContext.entities.multipleBeneficiaries.indexOf(b) === 0 ||
-         (lowerRaw === 'option 2' || lowerRaw === '2') && updatedContext.entities.multipleBeneficiaries.indexOf(b) === 1
+         (lowerRaw === 'first one' || lowerRaw === 'option 1' || lowerRaw === '1' || lowerRaw === 'first') && updatedContext.entities.multipleBeneficiaries.indexOf(b) === 0 ||
+         (lowerRaw === 'option 2' || lowerRaw === '2' || lowerRaw === 'second') && updatedContext.entities.multipleBeneficiaries.indexOf(b) === 1
       );
       if (exactContextMatch) {
         entities.beneficiaryId = exactContextMatch.id;
         entities.beneficiaryName = exactContextMatch.name;
         entities.beneficiaryObj = exactContextMatch;
         entities.multipleBeneficiaries = undefined;
+      } else if (/\b(neither|none|other|another)\b/i.test(rawText)) {
+        return {
+           text: "No problem. Would you like to add a new beneficiary?",
+           widget: 'new_beneficiary_options',
+           widgetData: { name: 'Recipient' },
+           updatedContext: { ...updatedContext, entities: { ...updatedContext.entities, multipleBeneficiaries: undefined } }
+        };
       }
     }
-    if (parsed.entities.beneficiaryName || parsed.entities.newBeneficiaryName) {
+    
+    if (parsed.entities.beneficiaryName || parsed.entities.newBeneficiaryName || parsed.entities.mobile || parsed.entities.upi || parsed.entities.account) {
        entities.multipleBeneficiaries = undefined; 
     }
     entities = { ...updatedContext.entities, ...entities };
@@ -240,6 +265,10 @@ export function generateBotResponse(
     updatedContext.entities = { ...updatedContext.entities, ...entities };
     entities = updatedContext.entities;
   } else if (intent === 'unknown' && Object.keys(entities).length > 0 && !updatedContext.intent) {
+     if (entities.faq) {
+         if (entities.faq === 'charges') return { text: "IMPS transfers up to ₹1,000 are free. Above that, a ₹5 fee applies. NEFT is completely free.", updatedContext };
+         if (entities.faq === 'eta') return { text: "IMPS and UPI are instant. NEFT usually takes 30 mins to 2 hours.", updatedContext };
+     }
      intent = 'transfer';
      updatedContext.intent = 'transfer';
      updatedContext.entities = { ...entities };
@@ -251,7 +280,7 @@ export function generateBotResponse(
       updatedContext.intent = popped.intent;
       updatedContext.entities = popped.entities;
       let resumeText = '';
-      if (popped.intent === 'transfer') resumeText = `\n\nWould you still like to proceed with your transfer?`;
+      if (popped.intent === 'transfer') resumeText = `\n\nReturning to your transfer...`;
       else if (popped.intent === 'block_card') resumeText = `\n\nReturning to your card blocking request...`;
       return currentText + resumeText;
     }
@@ -259,36 +288,79 @@ export function generateBotResponse(
     return currentText;
   };
 
+  if (entities.faq) {
+     if (entities.faq === 'charges') return { text: checkStackForResume("IMPS transfers up to ₹1,000 are free. Above that, a ₹5 fee applies. NEFT is completely free."), updatedContext };
+     if (entities.faq === 'eta') return { text: checkStackForResume("IMPS and UPI are instant. NEFT usually takes 30 mins to 2 hours."), updatedContext };
+  }
+
   switch (intent) {
     case 'transfer':
       if (entities.amount && entities.amount > (updatedContext.balance ?? mockAccount.balance)) {
          return {
-           text: `Your available balance is ₹${(updatedContext.balance ?? mockAccount.balance).toLocaleString('en-IN')}. Would you like to send a lower amount or use another account?`,
+           text: `Your available balance is ₹${(updatedContext.balance ?? mockAccount.balance).toLocaleString('en-IN')}. Please choose a lower amount or another account.`,
            updatedContext: { ...updatedContext, entities: { ...entities, amount: null } }
          };
       }
 
+      // If user gives direct identifier
+      if (entities.mobile) {
+         return {
+           text: `Found linked account for ${entities.mobile} (Axis Bank •••3210). Is this the correct recipient?`,
+           widget: 'fallback_widget', // A simple Yes/No widget
+           updatedContext: { ...updatedContext, entities: { ...entities, beneficiaryName: 'Axis Bank •••3210' } }
+         };
+      }
+      if (entities.upi) {
+         return {
+           text: `Validated UPI ID ${entities.upi}. Recipient name is Priya. Is this correct?`,
+           widget: 'fallback_widget',
+           updatedContext: { ...updatedContext, entities: { ...entities, beneficiaryName: 'Priya' } }
+         };
+      }
+      
       if (entities.amount && (entities.beneficiaryName || entities.newBeneficiaryName)) {
         if (entities.newBeneficiaryName && !entities.beneficiaryName) {
             return {
-                text: `I don't see ${entities.newBeneficiaryName} saved. How would you like to find them?`,
+                text: `I couldn't find ${entities.newBeneficiaryName} in your saved beneficiaries. How would you like to locate them?`,
                 widget: 'new_beneficiary_options',
                 widgetData: { name: entities.newBeneficiaryName, amount: entities.amount },
                 updatedContext
             };
         }
 
-        const methodStr = entities.method ? ` through ${entities.method}` : '';
-        const prefix = isCorrection ? 'Got it, updated.' : 'Got it —';
+        // Suggest IMPS if urgent
+        let methodStr = entities.method || 'IMPS';
+        let arrivalStr = 'Instant';
+        let prefix = isCorrection ? 'Got it, updated.' : 'Got it.';
+        
+        if (entities.timing === 'scheduled') {
+           prefix = 'Scheduled transfer.';
+           arrivalStr = 'Tomorrow';
+        }
+        if (entities.urgency === 'urgent' && !entities.method) {
+           methodStr = 'IMPS';
+           prefix = 'IMPS is instant. Proceeding with IMPS.';
+        } else if (entities.method === 'NEFT') {
+           arrivalStr = '~ 30 Mins';
+        }
+
+        const sourceAcct = entities.sourceAccount || 'Savings';
+
         return {
-          text: `${prefix} You are sending ₹${entities.amount.toLocaleString('en-IN')} to ${entities.beneficiaryName}${methodStr} from Savings Account ending ${mockAccount.numberEnding}.`,
+          text: `${prefix} Please review the transfer details before confirming.`,
           widget: 'transfer_summary',
-          widgetData: { amount: entities.amount, beneficiary: mockBeneficiaries.find(b => b.id === entities.beneficiaryId), method: entities.method || 'IMPS' },
+          widgetData: { 
+            amount: entities.amount, 
+            beneficiary: mockBeneficiaries.find(b => b.id === entities.beneficiaryId) || { name: entities.beneficiaryName }, 
+            method: methodStr,
+            sourceAccount: sourceAcct,
+            arrival: arrivalStr
+          },
           updatedContext 
         };
       } else if (entities.amount && entities.multipleBeneficiaries) {
         return { 
-          text: `I found ${entities.multipleBeneficiaries.length} ${entities.multipleBeneficiaries[0].name.split(' ')[0]}s. Which one would you like?`, 
+          text: `I found multiple beneficiaries named ${entities.multipleBeneficiaries[0].name.split(' ')[0]}. Please choose.`, 
           widget: 'contact_selection',
           widgetData: { contacts: entities.multipleBeneficiaries, amount: entities.amount },
           updatedContext 
@@ -299,20 +371,20 @@ export function generateBotResponse(
         return { text: `Sure, how much would you like to send to ${entities.beneficiaryName}?`, updatedContext };
       } else if (entities.multipleBeneficiaries) {
         return { 
-          text: `I found ${entities.multipleBeneficiaries.length} matches. Which one would you like?`, 
+          text: `I found multiple matches. Which one would you like?`, 
           widget: 'contact_selection',
           widgetData: { contacts: entities.multipleBeneficiaries },
           updatedContext 
         };
       } else if (entities.newBeneficiaryName) {
         return {
-           text: `I don't have ${entities.newBeneficiaryName} saved. Would you like to find them using mobile number, UPI ID, or account number?`,
+           text: `I don't have ${entities.newBeneficiaryName} saved. How would you like to find them?`,
            widget: 'new_beneficiary_options',
            widgetData: { name: entities.newBeneficiaryName },
            updatedContext
         };
       }
-      return { text: 'I can help with that. Who would you like to pay?', updatedContext };
+      return { text: 'Sure — who would you like to send money to?', updatedContext };
 
     case 'block_card':
       const cardTypeStr = entities.cardType ? entities.cardType + ' ' : '';
@@ -376,7 +448,8 @@ export function generateBotResponse(
 
     default:
       if (Object.keys(entities).length > 0) {
-          return { text: "I captured that, but I'm not sure what you want to do with it. Try saying 'Send money' or 'Block card'.", updatedContext };
+          // Recover from confusion
+          return { text: "I caught those details. Do you want to start a money transfer?", updatedContext };
       }
       return {
         text: "I didn't quite catch that. You can ask me to send money, show autopays, or check your balance.",
