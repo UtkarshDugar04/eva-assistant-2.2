@@ -70,6 +70,7 @@ export const InputArea = () => {
 
   const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const isListeningRef = useRef(false);
 
   const handleSend = () => {
     const trimmed = text.trim();
@@ -85,9 +86,12 @@ export const InputArea = () => {
       setText('');
       textRef.current = '';
       if (recognitionRef.current) {
+          recognitionRef.current.onresult = null;
           recognitionRef.current.onend = null;
+          recognitionRef.current.onerror = null;
           recognitionRef.current.stop();
           setIsListening(false);
+          isListeningRef.current = false;
           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       }
       inputRef.current?.focus();
@@ -125,10 +129,12 @@ export const InputArea = () => {
 
     recognition.onstart = () => {
       setIsListening(true);
+      isListeningRef.current = true;
       resetSilenceTimer();
     };
     
     recognition.onresult = (event: any) => {
+      if (!isListeningRef.current) return;
       let finalTranscript = '';
       for (let i = event.resultIndex; i < event.results.length; ++i) {
         if (event.results[i].isFinal) {
@@ -158,6 +164,7 @@ export const InputArea = () => {
 
     recognition.onend = () => {
       setIsListening(false);
+      isListeningRef.current = false;
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       
       const finalVal = textRef.current.trim();
