@@ -87,6 +87,8 @@ export const InputArea = () => {
       if (recognitionRef.current) {
           recognitionRef.current.onend = null;
           recognitionRef.current.stop();
+          setIsListening(false);
+          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       }
       inputRef.current?.focus();
     }
